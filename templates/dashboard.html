@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tecnolab | Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
+    body { display: flex; min-height: 100vh; background: #f1f5f9; color: #0f172a; }
+    aside { width: 230px; background: #0f172a; color: #cbd5e1; padding: 1.5rem 1rem;
+            display: flex; flex-direction: column; }
+    aside h2 { color: #fff; margin-bottom: 2rem; }
+    aside h2 span { color: #3b82f6; }
+    aside a { display: block; color: inherit; text-decoration: none; padding: .7rem .9rem;
+              border-radius: 8px; margin-bottom: .3rem; }
+    aside a:hover, aside a.activo { background: #1e293b; color: #fff; }
+    aside form { margin-top: auto; }
+    aside button { width: 100%; padding: .7rem; background: #334155; color: #fff;
+                   border: 0; border-radius: 8px; cursor: pointer; }
+    main { flex: 1; padding: 2rem; overflow-x: hidden; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .card { background: #fff; border-radius: 12px; padding: 1.2rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .kpi small { color: #64748b; }
+    .kpi strong { display: block; font-size: 1.8rem; margin-top: .3rem; }
+    .kpi.alerta strong { color: #dc2626; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    h3 { margin-bottom: 1rem; font-size: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #e2e8f0; }
+    .tag { padding: .15rem .5rem; border-radius: 999px; font-size: .75rem; }
+    .tag.ENTRADA { background: #dcfce7; color: #166534; }
+    .tag.SALIDA { background: #fee2e2; color: #991b1b; }
+    .vacio { color: #94a3b8; font-size: .9rem; }
+    @media (max-width: 760px) { body { flex-direction: column; } aside { width: 100%; } }
+  </style>
+</head>
+<body>
+  <aside>
+    <h2>Tecno<span>lab</span></h2>
+    <a href="{% url 'dashboard' %}" class="activo">📊 Dashboard</a>
+    <a href="/admin/inventario/producto/">📦 Productos</a>
+    <a href="/admin/inventario/categoria/">🏷️ Categorías</a>
+    <a href="/admin/inventario/movimiento/">🔄 Movimientos</a>
+    <a href="/admin/">⚙️ Administración</a>
+    <form method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button type="submit">Cerrar sesión</button>
+    </form>
+  </aside>
+
+  <main>
+    <header>
+      <h1>Dashboard</h1>
+      <span>Hola, {{ request.user.get_username }}</span>
+    </header>
+
+    <section class="kpis">
+      <div class="card kpi"><small>Productos activos</small><strong>{{ total_productos }}</strong></div>
+      <div class="card kpi"><small>Unidades en stock</small><strong>{{ total_unidades }}</strong></div>
+      <div class="card kpi"><small>Valor del inventario</small><strong>{{ valor_inventario|floatformat:2 }}</strong></div>
+      <div class="card kpi alerta"><small>Con stock bajo</small><strong>{{ total_bajo_stock }}</strong></div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h3>Entradas y salidas (últimos 7 días)</h3>
+        <canvas id="grafMovs"></canvas>
+      </div>
+      <div class="card">
+        <h3>Stock por categoría</h3>
+        <canvas id="grafCats"></canvas>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h3>⚠️ Productos con stock bajo</h3>
+        {% if bajo_stock %}
+        <table>
+          <tr><th>Producto</th><th>Stock</th><th>Mínimo</th></tr>
+          {% for p in bajo_stock %}
+          <tr><td>{{ p.nombre }}</td><td>{{ p.stock }}</td><td>{{ p.stock_minimo }}</td></tr>
+          {% endfor %}
+        </table>
+        {% else %}<p class="vacio">Todo en orden, no hay alertas.</p>{% endif %}
+      </div>
+      <div class="card">
+        <h3>Últimos movimientos</h3>
+        {% if ultimos_movimientos %}
+        <table>
+          <tr><th>Producto</th><th>Tipo</th><th>Cant.</th></tr>
+          {% for m in ultimos_movimientos %}
+          <tr><td>{{ m.producto.nombre }}</td><td><span class="tag {{ m.tipo }}">{{ m.get_tipo_display }}</span></td><td>{{ m.cantidad }}</td></tr>
+          {% endfor %}
+        </table>
+        {% else %}<p class="vacio">Aún no hay movimientos.</p>{% endif %}
+      </div>
+    </section>
+  </main>
+
+  {{ dias_labels|json_script:"dias-labels" }}
+  {{ entradas|json_script:"entradas" }}
+  {{ salidas|json_script:"salidas" }}
+  {{ cat_labels|json_script:"cat-labels" }}
+  {{ cat_data|json_script:"cat-data" }}
+
+  <script>
+    const leer = id => JSON.parse(document.getElementById(id).textContent);
+
+    new Chart(document.getElementById('grafMovs'), {
+      type: 'bar',
+      data: {
+        labels: leer('dias-labels'),
+        datasets: [
+          { label: 'Entradas', data: leer('entradas'), backgroundColor: '#22c55e' },
+          { label: 'Salidas', data: leer('salidas'), backgroundColor: '#ef4444' }
+        ]
+      },
+      options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+
+    new Chart(document.getElementById('grafCats'), {
+      type: 'doughnut',
+      data: {
+        labels: leer('cat-labels'),
+        datasets: [{ data: leer('cat-data'),
+          backgroundColor: ['#3b82f6','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4'] }]
+      }
+    });
+  </script>
+</body>
+</html>
