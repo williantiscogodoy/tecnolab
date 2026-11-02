@@ -10,7 +10,6 @@ gunicorn==26.2.0
 idna==3.20
 pillow==13.0.0
 psycopg2-binary==2.9.13
-pygame==2.6.1
 python-decouple==3.8
 requests==2.34.2
 six==1.17.0
