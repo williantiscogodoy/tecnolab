@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Productos{% endblock %}
+{% block page_title %}Productos{% endblock %}
+{% block page_sub %}<span class="date">{{ total_general }} producto{{ total_general|pluralize }} en el catálogo</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .toolbar { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; margin-bottom: 1.1rem; }
+  .search { position: relative; flex: 1 1 240px; min-width: 0; }
+  .search .ico { position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--muted); width: 18px; height: 18px; pointer-events: none; }
+  .search .input { padding-left: 2.6rem; }
+  .toolbar select.input { width: auto; flex: 0 1 190px; }
+
+  .cell-prod { display: flex; align-items: center; gap: 0.8rem; min-width: 210px; }
+  .thumb { width: 46px; height: 46px; flex: none; border-radius: 12px; object-fit: cover; background: var(--surface-2); border: 1px solid var(--border); }
+  .thumb.ph { display: grid; place-items: center; color: var(--muted); }
+  tr.is-off .cell-prod, tr.is-off .dim { opacity: 0.55; }
+
+  .stock-cell { display: flex; align-items: center; gap: 0.6rem; justify-content: flex-end; flex-wrap: wrap; }
+  .stock-cell strong { font-variant-numeric: tabular-nums; }
+
+  .row-actions { display: flex; gap: 0.35rem; justify-content: flex-end; }
+  .act { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); transition: color 0.2s, background-color 0.2s, border-color 0.2s; }
+  .act:hover { color: var(--text); background: var(--hover); }
+  .act.danger:hover { color: var(--danger); background: var(--danger-bg); border-color: transparent; }
+  .act .ico { width: 17px; height: 17px; }
+
+  .pager { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.88rem; color: var(--muted); }
+  .pager .btns { display: flex; gap: 0.5rem; }
+  .btn[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
+  .empty .btn { margin-top: 0.6rem; }
+</style>
+{% endblock %}
+
+{% block actions %}
+<a class="btn primary" href="{% url 'producto_crear' %}" aria-label="Nuevo producto">
+  <svg class="ico"><use href="#i-plus"/></svg><span>Nuevo producto</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<section class="panel reveal" style="--i:1">
+  <form class="toolbar" method="get" id="filtros" role="search">
+    <div class="search">
+      <svg class="ico"><use href="#i-search"/></svg>
+      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre o SKU" aria-label="Buscar productos">
+    </div>
+    <select class="input" name="categoria" aria-label="Filtrar por categoría">
+      <option value="">Todas las categorías</option>
+      {% for c in categorias %}<option value="{{ c.pk }}" {% if categoria_id == c.pk %}selected{% endif %}>{{ c.nombre }}</option>{% endfor %}
+    </select>
+    <select class="input" name="estado" aria-label="Filtrar por estado">
+      <option value="">Todos los estados</option>
+      <option value="activos" {% if estado == 'activos' %}selected{% endif %}>Activos</option>
+      <option value="bajo" {% if estado == 'bajo' %}selected{% endif %}>Con stock bajo</option>
+      <option value="inactivos" {% if estado == 'inactivos' %}selected{% endif %}>Inactivos</option>
+    </select>
+    <button class="btn keep-label" type="submit">Filtrar</button>
+    {% if hay_filtros %}<a class="link" href="{% url 'producto_lista' %}">Limpiar</a>{% endif %}
+  </form>
+
+  {% if page_obj %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th class="hide-md">Categoría</th>
+          <th class="num hide-sm">Precio</th>
+          <th class="num">Stock</th>
+          <th><span class="sr-only" style="position:absolute;left:-9999px">Acciones</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in page_obj %}
+        <tr class="{% if not p.activo %}is-off{% endif %}">
+          <td>
+            <div class="cell-prod">
+              {% if p.imagen %}<img class="thumb" src="{{ p.imagen.url }}" alt="" loading="lazy">
+              {% else %}<div class="thumb ph" aria-hidden="true"><svg class="ico"><use href="#i-image"/></svg></div>{% endif %}
+              <div>
+                <a class="name" href="{% url 'producto_editar' p.pk %}">{{ p.nombre }}</a>
+                <span class="sub">{{ p.sku }}{% if not p.activo %} · <span class="badge off" style="padding:0.05rem 0.45rem">Inactivo</span>{% endif %}</span>
+              </div>
+            </div>
+          </td>
+          <td class="hide-md dim">{{ p.categoria.nombre }}</td>
+          <td class="num hide-sm dim">Bs {{ p.precio_venta|floatformat:"2g" }}</td>
+          <td>
+            <div class="stock-cell">
+              <strong>{{ p.stock }}</strong>
+              {% if p.stock == 0 %}<span class="badge out">Agotado</span>
+              {% elif p.stock <= p.stock_minimo %}<span class="badge low">Stock bajo</span>
+              {% else %}<span class="badge in hide-sm">Disponible</span>{% endif %}
+            </div>
+          </td>
+          <td>
+            <div class="row-actions">
+              <a class="act" href="{% url 'producto_editar' p.pk %}" aria-label="Editar {{ p.nombre }}" title="Editar"><svg class="ico"><use href="#i-edit"/></svg></a>
+              <a class="act danger" href="{% url 'producto_eliminar' p.pk %}" aria-label="Eliminar {{ p.nombre }}" title="Eliminar"><svg class="ico"><use href="#i-trash"/></svg></a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager">
+    <span>Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="btns">
+      <a class="btn keep-label" href="?{% if qs %}{{ qs }}&{% endif %}page={{ pag_anterior }}" {% if not page_obj.has_previous %}aria-disabled="true" tabindex="-1"{% endif %}>Anterior</a>
+      <a class="btn keep-label" href="?{% if qs %}{{ qs }}&{% endif %}page={{ pag_siguiente }}" {% if not page_obj.has_next %}aria-disabled="true" tabindex="-1"{% endif %}>Siguiente</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% else %}
+  <div class="empty static">
+    <svg class="ico"><use href="#i-box"/></svg>
+    {% if hay_filtros %}
+      <strong>No encontramos productos con esos filtros</strong>
+      Prueba con otra búsqueda o quita los filtros.
+      <a class="btn keep-label" href="{% url 'producto_lista' %}">Limpiar filtros</a>
+    {% else %}
+      <strong>Aún no tienes productos</strong>
+      Agrega el primero para empezar a controlar tu inventario.
+      <a class="btn primary keep-label" href="{% url 'producto_crear' %}"><svg class="ico"><use href="#i-plus"/></svg><span>Nuevo producto</span></a>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Los filtros de lista se aplican al instante
+  document.querySelectorAll('#filtros select').forEach(function (s) {
+    s.addEventListener('change', function () { document.getElementById('filtros').submit(); });
+  });
+</script>
+{% endblock %}

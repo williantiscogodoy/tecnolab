@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}{% if tiene_movimientos %}Desactivar producto{% else %}Eliminar producto{% endif %}{% endblock %}
+{% block page_title %}{% if tiene_movimientos %}Desactivar producto{% else %}Eliminar producto{% endif %}{% endblock %}
+{% block page_sub %}<span class="date">{{ producto.nombre }}</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .confirm { width: min(560px, 100%); margin: 1rem auto 0; text-align: center; padding: 2rem 1.6rem; }
+  .confirm .badge-ico { width: 56px; height: 56px; margin: 0 auto 1.1rem; border-radius: 16px; display: grid; place-items: center; }
+  .confirm .badge-ico.danger { color: var(--danger); background: var(--danger-bg); }
+  .confirm .badge-ico.warn { color: var(--warn); background: var(--warn-bg); }
+  .confirm .badge-ico .ico { width: 26px; height: 26px; }
+  .confirm h2 { font-size: 1.2rem; letter-spacing: -0.01em; }
+  .confirm p { color: var(--muted); font-size: 0.92rem; line-height: 1.55; margin-top: 0.6rem; }
+  .confirm .item { display: flex; align-items: center; gap: 0.8rem; text-align: left; margin: 1.3rem 0 0; padding: 0.8rem 1rem; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
+  .confirm .item img, .confirm .item .ph { width: 46px; height: 46px; border-radius: 12px; object-fit: cover; flex: none; display: grid; place-items: center; background: var(--surface); color: var(--muted); }
+  .confirm .btns { display: flex; justify-content: center; gap: 0.7rem; margin-top: 1.6rem; flex-wrap: wrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="panel confirm reveal" style="--i:1">
+  {% if tiene_movimientos %}
+    <div class="badge-ico warn"><svg class="ico"><use href="#i-alert"/></svg></div>
+    <h2>Este producto tiene historial</h2>
+    <p>Tiene {{ num_movimientos }} movimiento{{ num_movimientos|pluralize }} de inventario, así que no se puede eliminar sin perder ese historial. Puedes <strong>desactivarlo</strong>: deja de contar en el dashboard, pero sus registros se conservan y puedes reactivarlo cuando quieras.</p>
+  {% else %}
+    <div class="badge-ico danger"><svg class="ico"><use href="#i-trash"/></svg></div>
+    <h2>¿Eliminar este producto?</h2>
+    <p>Se borrará de forma permanente. Esta acción no se puede deshacer.</p>
+  {% endif %}
+
+  <div class="item">
+    {% if producto.imagen %}<img src="{{ producto.imagen.url }}" alt="">{% else %}<div class="ph"><svg class="ico"><use href="#i-image"/></svg></div>{% endif %}
+    <div><span class="name">{{ producto.nombre }}</span><span class="sub">{{ producto.sku }} · {{ producto.stock }} en stock</span></div>
+  </div>
+
+  <form method="post" class="btns">
+    {% csrf_token %}
+    <a class="btn keep-label" href="{% url 'producto_lista' %}">Cancelar</a>
+    {% if tiene_movimientos %}
+      {% if producto.activo %}
+      <button class="btn primary keep-label" type="submit" name="accion" value="desactivar"><span>Desactivar producto</span></button>
+      {% endif %}
+    {% else %}
+      <button class="btn danger keep-label" type="submit" name="accion" value="eliminar"><svg class="ico"><use href="#i-trash"/></svg><span>Sí, eliminar</span></button>
+    {% endif %}
+  </form>
+  {% if tiene_movimientos and not producto.activo %}
+  <p>Este producto ya está inactivo. Para reactivarlo, <a class="link" href="{% url 'producto_editar' producto.pk %}">edítalo</a> y activa el interruptor.</p>
+  {% endif %}
+</section>
+{% endblock %}

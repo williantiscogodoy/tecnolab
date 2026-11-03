@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}{% if producto %}Editar producto{% else %}Nuevo producto{% endif %}{% endblock %}
+{% block page_title %}{% if producto %}Editar producto{% else %}Nuevo producto{% endif %}{% endblock %}
+{% block page_sub %}<span class="date">{% if producto %}{{ producto.nombre }}{% else %}Completa los datos del producto{% endif %}</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .back { margin-bottom: -0.4rem; }
+  .form-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+  .stack { display: grid; gap: 1.2rem; min-width: 0; }
+  .fields { display: grid; gap: 1rem; }
+  .fields.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .dropzone { position: relative; display: grid; place-items: center; text-align: center; aspect-ratio: 4 / 3; border: 1.5px dashed var(--border); border-radius: 14px; background: var(--surface-2); color: var(--muted); overflow: hidden; transition: border-color 0.25s, background-color 0.25s; }
+  .dropzone:hover, .dropzone.drag, .dropzone:focus-within { border-color: var(--primary); background: rgba(59, 130, 246, 0.08); }
+  .dropzone img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: opacity 0.3s; }
+  .dropzone.removed img { opacity: 0.18; }
+  .dropzone input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  .dz-text { display: grid; gap: 0.3rem; justify-items: center; padding: 1rem; pointer-events: none; }
+  .dz-text .ico { width: 30px; height: 30px; }
+  .dz-text strong { color: var(--text); font-weight: 600; }
+  .dz-text small { font-size: 0.8rem; }
+  .dropzone.has-img .dz-text { display: none; }
+  .img-tools { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; margin-top: 0.8rem; font-size: 0.85rem; color: var(--muted); }
+  .check { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+  .check input { accent-color: var(--danger); width: 16px; height: 16px; }
+
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 1rem; cursor: pointer; padding-top: 0.2rem; }
+  .switch strong { display: block; font-size: 0.92rem; font-weight: 600; }
+  .switch small { color: var(--muted); font-size: 0.8rem; }
+  .sw { position: relative; flex: none; }
+  .sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+  .track { display: block; width: 46px; height: 27px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); position: relative; transition: background-color 0.3s, border-color 0.3s; }
+  .track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 21px; height: 21px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); transition: transform 0.35s var(--ease); }
+  .sw input:checked + .track { background: var(--primary); border-color: transparent; }
+  .sw input:checked + .track::after { transform: translateX(19px); }
+  .sw input:focus-visible + .track { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  .margin { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.8rem 1rem; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font-size: 0.88rem; color: var(--muted); }
+  .margin strong { font-variant-numeric: tabular-nums; }
+  .margin .pos { color: var(--ok); }
+  .margin .neg { color: var(--danger); }
+
+  .note { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.83rem; color: var(--muted); line-height: 1.45; }
+  .note .ico { width: 17px; height: 17px; margin-top: 1px; color: var(--primary); }
+
+  .form-actions { display: flex; justify-content: flex-end; gap: 0.7rem; }
+
+  @media (max-width: 1000px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) { .fields.two { grid-template-columns: minmax(0, 1fr); } .form-actions .btn { flex: 1; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<a class="link back reveal" href="{% url 'producto_lista' %}"><svg class="ico"><use href="#i-arrow-left"/></svg>Volver a productos</a>
+
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="toast error" style="margin-bottom:1rem" role="alert"><svg class="ico"><use href="#i-alert"/></svg><p>{{ form.non_field_errors|join:" " }}</p></div>
+  {% endif %}
+
+  <div class="form-grid">
+    <div class="stack">
+      <section class="panel reveal" style="--i:1">
+        <div class="panel-head"><div><h2>Información general</h2><p>Cómo se identifica el producto en el inventario</p></div></div>
+        <div class="fields">
+          {% include "productos/_campo.html" with field=form.nombre %}
+          <div class="fields two">
+            {% include "productos/_campo.html" with field=form.sku %}
+            {% include "productos/_campo.html" with field=form.categoria %}
+          </div>
+          {% include "productos/_campo.html" with field=form.descripcion %}
+        </div>
+        <p class="note" style="margin-top:1rem"><svg class="ico"><use href="#i-info"/></svg><span>¿Falta una categoría? <a class="link" href="/admin/inventario/categoria/add/">Créala aquí</a> y vuelve a este formulario.</span></p>
+      </section>
+
+      <section class="panel reveal" style="--i:2">
+        <div class="panel-head"><div><h2>Precios</h2><p>En bolivianos (Bs)</p></div></div>
+        <div class="fields">
+          <div class="fields two">
+            {% include "productos/_campo.html" with field=form.precio_compra prefix="Bs" %}
+            {% include "productos/_campo.html" with field=form.precio_venta prefix="Bs" %}
+          </div>
+          <div class="margin" id="margen" aria-live="polite"><span>Ganancia por unidad</span><strong id="margenValor">—</strong></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="stack">
+      <section class="panel reveal" style="--i:3">
+        <div class="panel-head"><div><h2>Imagen</h2><p>Se muestra en el listado de productos</p></div></div>
+
+        <label class="dropzone {% if producto and producto.imagen %}has-img{% endif %}" id="dz">
+          {% if producto and producto.imagen %}<img id="preview" src="{{ producto.imagen.url }}" alt="Imagen actual de {{ producto.nombre }}">
+          {% else %}<img id="preview" alt="Vista previa" hidden>{% endif %}
+          <span class="dz-text">
+            <svg class="ico"><use href="#i-upload"/></svg>
+            <strong>Sube una imagen</strong>
+            <small>Haz clic o arrastra · PNG o JPG hasta 5 MB</small>
+          </span>
+          {{ form.imagen }}
+        </label>
+        {% for e in form.imagen.errors %}<span class="err" role="alert" style="color:var(--danger);font-size:.82rem;display:block;margin-top:.5rem">{{ e }}</span>{% endfor %}
+        <span class="err" id="imgError" role="alert" style="color:var(--danger);font-size:.82rem;display:block;margin-top:.5rem" hidden></span>
+
+        {% if producto and producto.imagen %}
+        <div class="img-tools"><label class="check">{{ form.quitar_imagen }}<span>Quitar la imagen actual</span></label></div>
+        {% endif %}
+      </section>
+
+      <section class="panel reveal" style="--i:4">
+        <div class="panel-head"><div><h2>Inventario</h2><p>Existencias y alertas</p></div></div>
+        <div class="fields">
+          <div class="fields two">
+            {% include "productos/_campo.html" with field=form.stock %}
+            {% include "productos/_campo.html" with field=form.stock_minimo %}
+          </div>
+
+          {% if producto %}
+          <p class="note"><svg class="ico"><use href="#i-info"/></svg><span>El stock cambia al registrar entradas y salidas, así queda todo el historial. <a class="link" href="/admin/inventario/movimiento/add/">Registrar movimiento</a></span></p>
+          {% endif %}
+
+          <label class="switch">
+            <span><strong>Producto activo</strong><small>Los inactivos no cuentan en el dashboard</small></span>
+            <span class="sw">{{ form.activo }}<i class="track"></i></span>
+          </label>
+        </div>
+      </section>
+
+      <div class="form-actions reveal" style="--i:5">
+        <a class="btn keep-label" href="{% url 'producto_lista' %}">Cancelar</a>
+        <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>{% if producto %}Guardar cambios{% else %}Crear producto{% endif %}</span></button>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    /* Margen en vivo */
+    var compra = document.getElementById('id_precio_compra');
+    var venta = document.getElementById('id_precio_venta');
+    var out = document.getElementById('margenValor');
+    function fmt(n) { return n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function calc() {
+      var c = parseFloat(compra.value), v = parseFloat(venta.value);
+      if (isNaN(c) || isNaN(v) || v <= 0) { out.textContent = '—'; out.className = ''; return; }
+      var gan = v - c, pct = (gan / v) * 100;
+      out.textContent = 'Bs ' + fmt(gan) + ' · ' + fmt(pct) + ' %';
+      out.className = gan >= 0 ? 'pos' : 'neg';
+    }
+    compra.addEventListener('input', calc);
+    venta.addEventListener('input', calc);
+    calc();
+
+    /* Vista previa de la imagen */
+    var MAX = 5 * 1024 * 1024;
+    var dz = document.getElementById('dz');
+    var input = document.getElementById('id_imagen');
+    var preview = document.getElementById('preview');
+    var err = document.getElementById('imgError');
+    input.addEventListener('change', function () {
+      var f = input.files[0];
+      err.hidden = true;
+      if (!f) return;
+      if (f.size > MAX) {
+        input.value = '';
+        err.textContent = 'La imagen supera los 5 MB. Elige una más liviana.';
+        err.hidden = false;
+        return;
+      }
+      preview.src = URL.createObjectURL(f);
+      preview.hidden = false;
+      dz.classList.add('has-img');
+      dz.classList.remove('removed');
+      var q = document.getElementById('id_quitar_imagen');
+      if (q) q.checked = false;
+    });
+    ['dragenter', 'dragover'].forEach(function (e) { dz.addEventListener(e, function () { dz.classList.add('drag'); }); });
+    ['dragleave', 'drop'].forEach(function (e) { dz.addEventListener(e, function () { dz.classList.remove('drag'); }); });
+
+    var quitar = document.getElementById('id_quitar_imagen');
+    if (quitar) quitar.addEventListener('change', function () { dz.classList.toggle('removed', quitar.checked); });
+  })();
+</script>
+{% endblock %}

@@ -80,3 +80,6 @@ LOGOUT_REDIRECT_URL = "login"
 
 # Correos: en consola por ahora (luego Brevo)
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"

@@ -1,134 +1,234 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tecnolab | Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
-    body { display: flex; min-height: 100vh; background: #f1f5f9; color: #0f172a; }
-    aside { width: 230px; background: #0f172a; color: #cbd5e1; padding: 1.5rem 1rem;
-            display: flex; flex-direction: column; }
-    aside h2 { color: #fff; margin-bottom: 2rem; }
-    aside h2 span { color: #3b82f6; }
-    aside a { display: block; color: inherit; text-decoration: none; padding: .7rem .9rem;
-              border-radius: 8px; margin-bottom: .3rem; }
-    aside a:hover, aside a.activo { background: #1e293b; color: #fff; }
-    aside form { margin-top: auto; }
-    aside button { width: 100%; padding: .7rem; background: #334155; color: #fff;
-                   border: 0; border-radius: 8px; cursor: pointer; }
-    main { flex: 1; padding: 2rem; overflow-x: hidden; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
-    .card { background: #fff; border-radius: 12px; padding: 1.2rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-    .kpi small { color: #64748b; }
-    .kpi strong { display: block; font-size: 1.8rem; margin-top: .3rem; }
-    .kpi.alerta strong { color: #dc2626; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
-    h3 { margin-bottom: 1rem; font-size: 1rem; }
-    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-    th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #e2e8f0; }
-    .tag { padding: .15rem .5rem; border-radius: 999px; font-size: .75rem; }
-    .tag.ENTRADA { background: #dcfce7; color: #166534; }
-    .tag.SALIDA { background: #fee2e2; color: #991b1b; }
-    .vacio { color: #94a3b8; font-size: .9rem; }
-    @media (max-width: 760px) { body { flex-direction: column; } aside { width: 100%; } }
-  </style>
-</head>
-<body>
-  <aside>
-    <h2>Tecno<span>lab</span></h2>
-    <a href="{% url 'dashboard' %}" class="activo">📊 Dashboard</a>
-    <a href="/admin/inventario/producto/">📦 Productos</a>
-    <a href="/admin/inventario/categoria/">🏷️ Categorías</a>
-    <a href="/admin/inventario/movimiento/">🔄 Movimientos</a>
-    <a href="/admin/">⚙️ Administración</a>
-    <form method="post" action="{% url 'logout' %}">
-      {% csrf_token %}
-      <button type="submit">Cerrar sesión</button>
-    </form>
-  </aside>
+{% extends "base.html" %}
+{% load l10n %}
 
-  <main>
-    <header>
-      <h1>Dashboard</h1>
-      <span>Hola, {{ request.user.get_username }}</span>
-    </header>
+{% block title %}Panel general{% endblock %}
 
-    <section class="kpis">
-      <div class="card kpi"><small>Productos activos</small><strong>{{ total_productos }}</strong></div>
-      <div class="card kpi"><small>Unidades en stock</small><strong>{{ total_unidades }}</strong></div>
-      <div class="card kpi"><small>Valor del inventario</small><strong>{{ valor_inventario|floatformat:2 }}</strong></div>
-      <div class="card kpi alerta"><small>Con stock bajo</small><strong>{{ total_bajo_stock }}</strong></div>
-    </section>
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.2rem; }
+  .kpi { position: relative; padding: 1.25rem 1.3rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .kpi-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+  .kpi-head span { font-size: 0.9rem; font-weight: 500; color: var(--muted); }
+  .chip { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; color: var(--primary); background: rgba(59, 130, 246, 0.14); }
+  .chip.cyan { color: var(--accent); background: rgba(6, 182, 212, 0.14); }
+  .chip.indigo { color: #818cf8; background: rgba(129, 140, 248, 0.16); }
+  .chip.warn { color: var(--warn); background: var(--warn-bg); }
+  .chip.ok { color: var(--ok); background: var(--ok-bg); }
+  .kpi-value { margin-top: 0.9rem; font-size: clamp(1.55rem, 2.3vw, 2rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi-value .cur { font-size: 0.55em; font-weight: 600; color: var(--muted); margin-right: 0.15em; letter-spacing: 0; }
+  .kpi-note { margin-top: 0.55rem; font-size: 0.82rem; color: var(--muted); }
+  .kpi.is-alert .kpi-value { color: var(--warn); }
+  .kpi-note.good { color: var(--ok); font-weight: 600; }
 
-    <section class="grid">
-      <div class="card">
-        <h3>Entradas y salidas (últimos 7 días)</h3>
-        <canvas id="grafMovs"></canvas>
-      </div>
-      <div class="card">
-        <h3>Stock por categoría</h3>
-        <canvas id="grafCats"></canvas>
-      </div>
-    </section>
+  .row.charts { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+  .row.tables { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
+  .chart-box { position: relative; height: 290px; min-width: 0; }
 
-    <section class="grid">
-      <div class="card">
-        <h3>⚠️ Productos con stock bajo</h3>
-        {% if bajo_stock %}
-        <table>
-          <tr><th>Producto</th><th>Stock</th><th>Mínimo</th></tr>
+  .qty.in { color: var(--ok); font-weight: 700; }
+  .qty.out { color: var(--danger); font-weight: 700; }
+  :root[data-theme="light"] .qty.in { color: #047857; }
+  :root[data-theme="light"] .qty.out { color: #be123c; }
+
+  @media (max-width: 1180px) {
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .row.charts, .row.tables { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .kpis { gap: 0.8rem; }
+    .kpi { padding: 1rem; }
+    .chip { width: 32px; height: 32px; border-radius: 9px; }
+    .kpi-head span { font-size: 0.82rem; }
+    .chart-box { height: 250px; }
+  }
+  @media (max-width: 380px) { .kpis { grid-template-columns: minmax(0, 1fr); } }
+</style>
+{% endblock %}
+
+{% block actions %}
+<a class="btn ghost" href="/admin/inventario/movimiento/add/" aria-label="Registrar movimiento">
+  <svg class="ico"><use href="#i-swap"/></svg><span>Registrar movimiento</span>
+</a>
+<a class="btn primary" href="{% url 'producto_crear' %}" aria-label="Nuevo producto">
+  <svg class="ico"><use href="#i-plus"/></svg><span>Nuevo producto</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<section class="kpis" aria-label="Indicadores principales">
+  <article class="kpi reveal" style="--i:1">
+    <div class="kpi-head"><span>Productos activos</span><div class="chip"><svg class="ico"><use href="#i-box"/></svg></div></div>
+    <div class="kpi-value"><span class="count" data-value="{{ total_productos|unlocalize }}" data-decimals="0">{{ total_productos }}</span></div>
+    <p class="kpi-note">En tu catálogo</p>
+  </article>
+
+  <article class="kpi reveal" style="--i:2">
+    <div class="kpi-head"><span>Unidades en stock</span><div class="chip cyan"><svg class="ico"><use href="#i-layers"/></svg></div></div>
+    <div class="kpi-value"><span class="count" data-value="{{ total_unidades|unlocalize }}" data-decimals="0">{{ total_unidades|floatformat:"0g" }}</span></div>
+    <p class="kpi-note">Suma de todos los productos</p>
+  </article>
+
+  <article class="kpi reveal" style="--i:3">
+    <div class="kpi-head"><span>Valor del inventario</span><div class="chip indigo"><svg class="ico"><use href="#i-wallet"/></svg></div></div>
+    <div class="kpi-value"><span class="cur">Bs</span><span class="count" data-value="{{ valor_inventario|unlocalize }}" data-decimals="2">{{ valor_inventario|floatformat:"2g" }}</span></div>
+    <p class="kpi-note">Calculado a precio de compra</p>
+  </article>
+
+  <article class="kpi reveal {% if total_bajo_stock %}is-alert{% endif %}" style="--i:4">
+    <div class="kpi-head">
+      <span>Con stock bajo</span>
+      <div class="chip {% if total_bajo_stock %}warn{% else %}ok{% endif %}"><svg class="ico"><use href="#{% if total_bajo_stock %}i-alert{% else %}i-check{% endif %}"/></svg></div>
+    </div>
+    <div class="kpi-value"><span class="count" data-value="{{ total_bajo_stock|unlocalize }}" data-decimals="0">{{ total_bajo_stock }}</span></div>
+    {% if total_bajo_stock %}<p class="kpi-note">Necesitan reposición</p>{% else %}<p class="kpi-note good">Todo en orden</p>{% endif %}
+  </article>
+</section>
+
+<section class="row charts">
+  <article class="panel reveal" style="--i:5">
+    <div class="panel-head"><div><h2>Entradas y salidas</h2><p>Unidades movidas en los últimos 7 días</p></div></div>
+    <div class="chart-box" id="boxMovs"><canvas id="grafMovs" role="img" aria-label="Gráfica de entradas y salidas de los últimos 7 días"></canvas></div>
+    <div class="empty" id="emptyMovs"><svg class="ico"><use href="#i-chart"/></svg><strong>Aún no hay movimientos esta semana</strong>Registra una entrada o salida para ver la gráfica.</div>
+  </article>
+
+  <article class="panel reveal" style="--i:6">
+    <div class="panel-head"><div><h2>Stock por categoría</h2><p>Distribución de las unidades</p></div></div>
+    <div class="chart-box" id="boxCats"><canvas id="grafCats" role="img" aria-label="Gráfica de stock por categoría"></canvas></div>
+    <div class="empty" id="emptyCats"><svg class="ico"><use href="#i-tag"/></svg><strong>Sin stock para mostrar</strong>Crea categorías y agrega productos.</div>
+  </article>
+</section>
+
+<section class="row tables">
+  <article class="panel reveal" style="--i:7">
+    <div class="panel-head">
+      <div><h2>Productos con stock bajo</h2><p>Los más urgentes primero</p></div>
+      <a class="link" href="{% url 'producto_lista' %}?estado=bajo">Ver todos</a>
+    </div>
+    {% if bajo_stock %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Producto</th><th class="num">Stock</th><th class="num hide-sm">Mínimo</th><th>Estado</th></tr></thead>
+        <tbody>
           {% for p in bajo_stock %}
-          <tr><td>{{ p.nombre }}</td><td>{{ p.stock }}</td><td>{{ p.stock_minimo }}</td></tr>
+          <tr>
+            <td><a class="name" href="{% url 'producto_editar' p.pk %}">{{ p.nombre }}</a><span class="sub">{{ p.sku }}</span></td>
+            <td class="num">{{ p.stock }}</td>
+            <td class="num hide-sm">{{ p.stock_minimo }}</td>
+            <td>{% if p.stock == 0 %}<span class="badge out">Agotado</span>{% else %}<span class="badge low">Stock bajo</span>{% endif %}</td>
+          </tr>
           {% endfor %}
-        </table>
-        {% else %}<p class="vacio">Todo en orden, no hay alertas.</p>{% endif %}
-      </div>
-      <div class="card">
-        <h3>Últimos movimientos</h3>
-        {% if ultimos_movimientos %}
-        <table>
-          <tr><th>Producto</th><th>Tipo</th><th>Cant.</th></tr>
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty static"><svg class="ico"><use href="#i-check"/></svg><strong>Todo en orden</strong>Ningún producto está por debajo de su mínimo.</div>
+    {% endif %}
+  </article>
+
+  <article class="panel reveal" style="--i:8">
+    <div class="panel-head">
+      <div><h2>Últimos movimientos</h2><p>Actividad más reciente del inventario</p></div>
+      <a class="link" href="/admin/inventario/movimiento/">Ver todos</a>
+    </div>
+    {% if ultimos_movimientos %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Producto</th><th>Tipo</th><th class="num">Cant.</th><th class="hide-sm">Fecha</th></tr></thead>
+        <tbody>
           {% for m in ultimos_movimientos %}
-          <tr><td>{{ m.producto.nombre }}</td><td><span class="tag {{ m.tipo }}">{{ m.get_tipo_display }}</span></td><td>{{ m.cantidad }}</td></tr>
+          <tr>
+            <td><span class="name">{{ m.producto.nombre }}</span><span class="sub">{{ m.usuario.get_username|default:"Sin usuario" }}</span></td>
+            <td>{% if m.tipo == "ENTRADA" %}<span class="badge in">Entrada</span>{% else %}<span class="badge out">Salida</span>{% endif %}</td>
+            <td class="num"><span class="qty {% if m.tipo == 'ENTRADA' %}in{% else %}out{% endif %}">{% if m.tipo == "ENTRADA" %}+{% else %}−{% endif %}{{ m.cantidad }}</span></td>
+            <td class="hide-sm">{{ m.fecha|date:"d/m/Y H:i" }}</td>
+          </tr>
           {% endfor %}
-        </table>
-        {% else %}<p class="vacio">Aún no hay movimientos.</p>{% endif %}
-      </div>
-    </section>
-  </main>
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty static"><svg class="ico"><use href="#i-swap"/></svg><strong>Aún no hay movimientos</strong>Registra tu primera entrada o salida de inventario.</div>
+    {% endif %}
+  </article>
+</section>
 
-  {{ dias_labels|json_script:"dias-labels" }}
-  {{ entradas|json_script:"entradas" }}
-  {{ salidas|json_script:"salidas" }}
-  {{ cat_labels|json_script:"cat-labels" }}
-  {{ cat_data|json_script:"cat-data" }}
+{{ dias_labels|json_script:"dias-labels" }}
+{{ entradas|json_script:"entradas" }}
+{{ salidas|json_script:"salidas" }}
+{{ cat_labels|json_script:"cat-labels" }}
+{{ cat_data|json_script:"cat-data" }}
+{% endblock %}
 
-  <script>
-    const leer = id => JSON.parse(document.getElementById(id).textContent);
+{% block extra_js %}
+<script>
+  (function () {
+    var root = document.documentElement;
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var css = function (n) { return getComputedStyle(root).getPropertyValue(n).trim(); };
+    var read = function (id) { return JSON.parse(document.getElementById(id).textContent); };
 
-    new Chart(document.getElementById('grafMovs'), {
-      type: 'bar',
-      data: {
-        labels: leer('dias-labels'),
-        datasets: [
-          { label: 'Entradas', data: leer('entradas'), backgroundColor: '#22c55e' },
-          { label: 'Salidas', data: leer('salidas'), backgroundColor: '#ef4444' }
-        ]
-      },
-      options: { scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
-    });
-
-    new Chart(document.getElementById('grafCats'), {
-      type: 'doughnut',
-      data: {
-        labels: leer('cat-labels'),
-        datasets: [{ data: leer('cat-data'),
-          backgroundColor: ['#3b82f6','#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4'] }]
+    /* Contadores animados */
+    var fmt = function (n, d) { return n.toLocaleString('es-BO', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+    document.querySelectorAll('.count').forEach(function (el) {
+      var target = parseFloat(el.dataset.value), decimals = parseInt(el.dataset.decimals, 10) || 0;
+      var finalText = el.textContent;
+      if (reduceMotion || isNaN(target) || target === 0) return;
+      var start = null, duration = 1100;
+      el.textContent = fmt(0, decimals);
+      function step(ts) {
+        if (start === null) start = ts;
+        var t = Math.min((ts - start) / duration, 1), eased = 1 - Math.pow(1 - t, 4);
+        el.textContent = fmt(target * eased, decimals);
+        if (t < 1) requestAnimationFrame(step); else el.textContent = finalText;
       }
+      setTimeout(function () { requestAnimationFrame(step); }, 350);
     });
-  </script>
-</body>
-</html>
+
+    /* Gráficas */
+    Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+    Chart.defaults.font.size = 12;
+    Chart.defaults.animation.duration = reduceMotion ? 0 : 900;
+    Chart.defaults.animation.easing = 'easeOutQuart';
+    function themeDefaults() { Chart.defaults.color = css('--muted'); Chart.defaults.borderColor = css('--grid'); }
+    themeDefaults();
+
+    var entradas = read('entradas'), salidas = read('salidas'), catData = read('cat-data');
+    var hasMovs = entradas.concat(salidas).some(function (v) { return v > 0; });
+    var hasCats = catData.some(function (v) { return v > 0; });
+    function showEmpty(box, empty) { document.getElementById(box).style.display = 'none'; document.getElementById(empty).style.display = 'flex'; }
+    var barChart = null, doughnut = null;
+    var legend = { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 14 };
+
+    if (hasMovs) {
+      barChart = new Chart(document.getElementById('grafMovs'), {
+        type: 'bar',
+        data: { labels: read('dias-labels'), datasets: [
+          { label: 'Entradas', data: entradas, backgroundColor: '#10b981', borderRadius: 6, borderSkipped: false, maxBarThickness: 26 },
+          { label: 'Salidas', data: salidas, backgroundColor: '#f43f5e', borderRadius: 6, borderSkipped: false, maxBarThickness: 26 }
+        ] },
+        options: {
+          maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'top', align: 'end', labels: legend }, tooltip: { padding: 10, cornerRadius: 10, boxPadding: 4 } },
+          scales: { x: { grid: { display: false }, border: { display: false } }, y: { beginAtZero: true, border: { display: false }, ticks: { precision: 0, padding: 8 } } }
+        }
+      });
+    } else { showEmpty('boxMovs', 'emptyMovs'); }
+
+    if (hasCats) {
+      doughnut = new Chart(document.getElementById('grafCats'), {
+        type: 'doughnut',
+        data: { labels: read('cat-labels'), datasets: [{ data: catData,
+          backgroundColor: ['#3b82f6', '#06b6d4', '#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6'],
+          borderColor: css('--surface'), borderWidth: 3, hoverOffset: 6 }] },
+        options: { maintainAspectRatio: false, cutout: '68%', plugins: { legend: { position: 'bottom', labels: legend }, tooltip: { padding: 10, cornerRadius: 10 } } }
+      });
+    } else { showEmpty('boxCats', 'emptyCats'); }
+
+    window.addEventListener('tecnolab:theme', function () {
+      themeDefaults();
+      if (doughnut) doughnut.data.datasets[0].borderColor = css('--surface');
+      [barChart, doughnut].forEach(function (c) { if (c) c.update('none'); });
+    });
+  })();
+</script>
+{% endblock %}
