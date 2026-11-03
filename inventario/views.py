@@ -3,11 +3,13 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import user_passes_test
 from django.core.paginator import Paginator
-from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum
+from django.db import transaction
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 
-from .forms import ProductoForm
+from .forms import CategoriaForm, MovimientoForm, ProductoForm
 from .models import Categoria, Movimiento, Producto
 
 
@@ -175,4 +177,132 @@ def producto_eliminar(request, pk):
         "producto": producto,
         "tiene_movimientos": tiene_movimientos,
         "num_movimientos": num_movimientos,
+    })
+
+
+# ============================== Categorías ==============================
+@staff_required
+def categoria_lista(request):
+    categorias = Categoria.objects.annotate(
+        num_productos=Count("producto"),
+        total_stock=Sum("producto__stock"),
+    ).order_by("nombre")
+    return render(request, "categorias/lista.html", {"categorias": categorias})
+
+
+@staff_required
+def categoria_guardar(request, pk=None):
+    """Crea o edita una categoría (se usa desde el cuadro de diálogo de la lista)."""
+    if request.method != "POST":
+        return redirect("categoria_lista")
+
+    categoria = get_object_or_404(Categoria, pk=pk) if pk else None
+    form = CategoriaForm(request.POST, instance=categoria)
+
+    if form.is_valid():
+        guardada = form.save()
+        accion = "actualizada" if pk else "creada"
+        messages.success(request, f"Categoría “{guardada.nombre}” {accion}.")
+    else:
+        error = next(iter(form.errors.values()))[0]
+        messages.error(request, error)
+    return redirect("categoria_lista")
+
+
+@staff_required
+def categoria_eliminar(request, pk):
+    if request.method != "POST":
+        return redirect("categoria_lista")
+
+    categoria = get_object_or_404(Categoria, pk=pk)
+    if categoria.producto_set.exists():
+        messages.error(request, f"No se puede eliminar “{categoria.nombre}” porque tiene productos asignados.")
+    else:
+        nombre = categoria.nombre
+        categoria.delete()
+        messages.success(request, f"Categoría “{nombre}” eliminada.")
+    return redirect("categoria_lista")
+
+
+# ============================== Movimientos ==============================
+@staff_required
+def movimiento_lista(request):
+    movimientos = Movimiento.objects.select_related("producto", "usuario")
+
+    q = request.GET.get("q", "").strip()
+    tipo = request.GET.get("tipo", "")
+    desde = parse_date(request.GET.get("desde", "") or "")
+    hasta = parse_date(request.GET.get("hasta", "") or "")
+
+    if q:
+        movimientos = movimientos.filter(Q(producto__nombre__icontains=q) | Q(producto__sku__icontains=q))
+    if tipo in (Movimiento.ENTRADA, Movimiento.SALIDA):
+        movimientos = movimientos.filter(tipo=tipo)
+    else:
+        tipo = ""
+    if desde:
+        movimientos = movimientos.filter(fecha__date__gte=desde)
+    if hasta:
+        movimientos = movimientos.filter(fecha__date__lte=hasta)
+
+    totales = {r["tipo"]: r["t"] for r in movimientos.values("tipo").annotate(t=Sum("cantidad"))}
+    page_obj = Paginator(movimientos.order_by("-fecha", "-pk"), 15).get_page(request.GET.get("page"))
+
+    params = request.GET.copy()
+    params.pop("page", None)
+
+    return render(request, "movimientos/lista.html", {
+        "page_obj": page_obj,
+        "pag_anterior": max(page_obj.number - 1, 1),
+        "pag_siguiente": min(page_obj.number + 1, page_obj.paginator.num_pages),
+        "qs": params.urlencode(),
+        "q": q,
+        "tipo": tipo,
+        "desde": desde.isoformat() if desde else "",
+        "hasta": hasta.isoformat() if hasta else "",
+        "hay_filtros": bool(q or tipo or desde or hasta),
+        "total_entradas": totales.get(Movimiento.ENTRADA, 0),
+        "total_salidas": totales.get(Movimiento.SALIDA, 0),
+        "total_general": Movimiento.objects.count(),
+    })
+
+
+@staff_required
+def movimiento_crear(request):
+    inicial = {"tipo": Movimiento.ENTRADA}
+    pre = request.GET.get("producto", "")
+    if pre.isdigit():
+        inicial["producto"] = int(pre)
+
+    form = MovimientoForm(request.POST or None, initial=inicial)
+
+    if request.method == "POST" and form.is_valid():
+        datos = form.cleaned_data
+        with transaction.atomic():
+            # Bloquea la fila del producto para que dos salidas simultáneas no dejen el stock en negativo
+            producto = Producto.objects.select_for_update().get(pk=datos["producto"].pk)
+            if datos["tipo"] == Movimiento.SALIDA and datos["cantidad"] > producto.stock:
+                form.add_error("cantidad", f"Solo hay {producto.stock} unidad(es) en stock.")
+            else:
+                Movimiento.objects.create(
+                    producto=producto,
+                    tipo=datos["tipo"],
+                    cantidad=datos["cantidad"],
+                    nota=datos["nota"],
+                    usuario=request.user,
+                )
+                tipo_txt = "Entrada" if datos["tipo"] == Movimiento.ENTRADA else "Salida"
+                messages.success(
+                    request,
+                    f"{tipo_txt} de {datos['cantidad']} unidad(es) registrada. "
+                    f"Stock de “{producto.nombre}”: {producto.stock}.",
+                )
+                return redirect("movimiento_lista")
+
+    if request.method == "POST":
+        messages.error(request, "Revisa los datos del movimiento.")
+
+    return render(request, "movimientos/form.html", {
+        "form": form,
+        "productos": Producto.objects.filter(activo=True).order_by("nombre"),
     })

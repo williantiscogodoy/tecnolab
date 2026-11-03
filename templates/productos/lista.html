@@ -97,6 +97,7 @@
           </td>
           <td>
             <div class="row-actions">
+              {% if p.activo %}<a class="act" href="{% url 'movimiento_crear' %}?producto={{ p.pk }}" aria-label="Registrar movimiento de {{ p.nombre }}" title="Registrar movimiento"><svg class="ico"><use href="#i-swap"/></svg></a>{% endif %}
               <a class="act" href="{% url 'producto_editar' p.pk %}" aria-label="Editar {{ p.nombre }}" title="Editar"><svg class="ico"><use href="#i-edit"/></svg></a>
               <a class="act danger" href="{% url 'producto_eliminar' p.pk %}" aria-label="Eliminar {{ p.nombre }}" title="Eliminar"><svg class="ico"><use href="#i-trash"/></svg></a>
             </div>

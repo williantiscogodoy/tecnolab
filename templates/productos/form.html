@@ -74,7 +74,7 @@
           </div>
           {% include "productos/_campo.html" with field=form.descripcion %}
         </div>
-        <p class="note" style="margin-top:1rem"><svg class="ico"><use href="#i-info"/></svg><span>¿Falta una categoría? <a class="link" href="/admin/inventario/categoria/add/">Créala aquí</a> y vuelve a este formulario.</span></p>
+        <p class="note" style="margin-top:1rem"><svg class="ico"><use href="#i-info"/></svg><span>¿Falta una categoría? <a class="link" href="{% url 'categoria_lista' %}">Créala en Categorías</a> y vuelve a este formulario.</span></p>
       </section>
 
       <section class="panel reveal" style="--i:2">
@@ -120,7 +120,7 @@
           </div>
 
           {% if producto %}
-          <p class="note"><svg class="ico"><use href="#i-info"/></svg><span>El stock cambia al registrar entradas y salidas, así queda todo el historial. <a class="link" href="/admin/inventario/movimiento/add/">Registrar movimiento</a></span></p>
+          <p class="note"><svg class="ico"><use href="#i-info"/></svg><span>El stock cambia al registrar entradas y salidas, así queda todo el historial. <a class="link" href="{% url 'movimiento_crear' %}?producto={{ producto.pk }}">Registrar movimiento</a></span></p>
           {% endif %}
 
           <label class="switch">

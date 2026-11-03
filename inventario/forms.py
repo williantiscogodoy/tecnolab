@@ -1,7 +1,7 @@
 from django import forms
 from django.core.files.uploadedfile import UploadedFile
 
-from .models import Categoria, Producto
+from .models import Categoria, Movimiento, Producto
 
 MAX_IMAGEN = 5 * 1024 * 1024  # 5 MB
 
@@ -84,3 +84,51 @@ class ProductoForm(forms.ModelForm):
         if commit:
             producto.save()
         return producto
+
+
+class CategoriaForm(forms.ModelForm):
+    class Meta:
+        model = Categoria
+        fields = ["nombre"]
+
+    def clean_nombre(self):
+        nombre = " ".join(self.cleaned_data["nombre"].split())
+        existe = (
+            Categoria.objects.filter(nombre__iexact=nombre)
+            .exclude(pk=self.instance.pk)
+            .exists()
+        )
+        if existe:
+            raise forms.ValidationError("Ya existe una categoría con ese nombre.")
+        return nombre
+
+
+class MovimientoForm(forms.ModelForm):
+    cantidad = forms.IntegerField(
+        label="Cantidad", min_value=1,
+        error_messages={"min_value": "La cantidad debe ser al menos 1."},
+        widget=forms.NumberInput(attrs={"class": "input", "min": "1", "placeholder": "0", "inputmode": "numeric"}),
+    )
+
+    class Meta:
+        model = Movimiento
+        fields = ["producto", "tipo", "cantidad", "nota"]
+        labels = {"producto": "Producto", "tipo": "Tipo de movimiento", "nota": "Nota"}
+        widgets = {
+            "nota": forms.TextInput(attrs={
+                "class": "input", "maxlength": 200,
+                "placeholder": "Ej. Compra a proveedor, venta en mostrador… (opcional)",
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["producto"].queryset = Producto.objects.filter(activo=True).order_by("nombre")
+        self.fields["producto"].empty_label = "Selecciona un producto"
+
+    def clean(self):
+        datos = super().clean()
+        producto, tipo, cantidad = datos.get("producto"), datos.get("tipo"), datos.get("cantidad")
+        if producto and tipo == Movimiento.SALIDA and cantidad and cantidad > producto.stock:
+            self.add_error("cantidad", f"Solo hay {producto.stock} unidad(es) en stock.")
+        return datos

@@ -46,7 +46,7 @@
 {% endblock %}
 
 {% block actions %}
-<a class="btn ghost" href="/admin/inventario/movimiento/add/" aria-label="Registrar movimiento">
+<a class="btn ghost" href="{% url 'movimiento_crear' %}" aria-label="Registrar movimiento">
   <svg class="ico"><use href="#i-swap"/></svg><span>Registrar movimiento</span>
 </a>
 <a class="btn primary" href="{% url 'producto_crear' %}" aria-label="Nuevo producto">
@@ -128,7 +128,7 @@
   <article class="panel reveal" style="--i:8">
     <div class="panel-head">
       <div><h2>Últimos movimientos</h2><p>Actividad más reciente del inventario</p></div>
-      <a class="link" href="/admin/inventario/movimiento/">Ver todos</a>
+      <a class="link" href="{% url 'movimiento_lista' %}">Ver todos</a>
     </div>
     {% if ultimos_movimientos %}
     <div class="table-wrap">

@@ -261,8 +261,8 @@
     <nav class="nav">
       <a href="{% url 'dashboard' %}" {% if url == 'dashboard' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-grid"/></svg>Panel general</a>
       <a href="{% url 'producto_lista' %}" {% if url|slice:':8' == 'producto' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-box"/></svg>Productos</a>
-      <a href="/admin/inventario/categoria/"><svg class="ico"><use href="#i-tag"/></svg>Categorías</a>
-      <a href="/admin/inventario/movimiento/"><svg class="ico"><use href="#i-swap"/></svg>Movimientos</a>
+      <a href="{% url 'categoria_lista' %}" {% if url|slice:':9' == 'categoria' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-tag"/></svg>Categorías</a>
+      <a href="{% url 'movimiento_lista' %}" {% if url|slice:':10' == 'movimiento' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-swap"/></svg>Movimientos</a>
       <hr>
       <a href="/admin/"><svg class="ico"><use href="#i-sliders"/></svg>Administración</a>
     </nav>

@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar movimiento{% endblock %}
+{% block page_title %}Registrar movimiento{% endblock %}
+{% block page_sub %}<span class="date">Cada cambio de stock queda en el historial</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .back { margin-bottom: -0.4rem; }
+  .form-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+  .fields { display: grid; gap: 1.1rem; }
+
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; padding: 0.3rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; }
+  .seg label { position: relative; cursor: pointer; }
+  .seg input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+  .seg span { display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem; border-radius: 10px; font-weight: 600; color: var(--muted); transition: background-color 0.3s, color 0.3s; }
+  .seg input:checked + span.in { background: var(--ok-bg); color: var(--ok); }
+  .seg input:checked + span.out { background: var(--danger-bg); color: var(--danger); }
+  .seg input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+  :root[data-theme="light"] .seg input:checked + span.in { color: #047857; }
+  :root[data-theme="light"] .seg input:checked + span.out { color: #be123c; }
+
+  .resumen { position: sticky; top: 5.5rem; }
+  .res-prod { display: flex; flex-direction: column; gap: 0.15rem; padding-bottom: 1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+  .res-prod strong { font-size: 1rem; }
+  .res-prod small { color: var(--muted); }
+  .res-line { display: flex; justify-content: space-between; align-items: baseline; padding: 0.45rem 0; font-size: 0.92rem; color: var(--muted); }
+  .res-line strong { color: var(--text); font-variant-numeric: tabular-nums; }
+  .res-line.total { margin-top: 0.4rem; padding-top: 0.9rem; border-top: 1px solid var(--border); font-size: 1rem; color: var(--text); font-weight: 600; }
+  .res-line.total strong { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.02em; }
+  .res-line.total strong.bad { color: var(--danger); }
+  .res-line.total strong.warn { color: var(--warn); }
+  .res-line.total strong.good { color: var(--ok); }
+  .res-msg { min-height: 1.3rem; margin-top: 0.6rem; font-size: 0.84rem; color: var(--muted); }
+  .res-msg.bad { color: var(--danger); }
+  .res-msg.warn { color: var(--warn); }
+  .res-empty { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+
+  .form-actions { display: flex; justify-content: flex-end; gap: 0.7rem; margin-top: 1.3rem; }
+
+  @media (max-width: 1000px) { .form-grid { grid-template-columns: minmax(0, 1fr); } .resumen { position: static; } }
+  @media (max-width: 520px) { .form-actions .btn { flex: 1; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<a class="link back reveal" href="{% url 'movimiento_lista' %}"><svg class="ico"><use href="#i-arrow-left"/></svg>Volver a movimientos</a>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="form-grid">
+
+    <section class="panel reveal" style="--i:1">
+      <div class="panel-head"><div><h2>Datos del movimiento</h2><p>Elige el producto y cuántas unidades se mueven</p></div></div>
+
+      <div class="fields">
+        <div class="field {% if form.producto.errors %}has-error{% endif %}">
+          <label for="id_producto">Producto</label>
+          <select class="input" name="producto" id="id_producto" required>
+            <option value="">Selecciona un producto</option>
+            {% for p in productos %}
+            <option value="{{ p.pk }}" data-stock="{{ p.stock }}" data-min="{{ p.stock_minimo }}" data-sku="{{ p.sku }}" {% if form.producto.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.nombre }} ({{ p.sku }})</option>
+            {% endfor %}
+          </select>
+          {% for e in form.producto.errors %}<span class="err" role="alert">{{ e }}</span>{% endfor %}
+          {% if not productos %}<span class="hint">No hay productos activos. <a class="link" href="{% url 'producto_crear' %}">Crea uno primero</a>.</span>{% endif %}
+        </div>
+
+        <div class="field {% if form.tipo.errors %}has-error{% endif %}">
+          <label id="lblTipo">Tipo de movimiento</label>
+          <div class="seg" role="radiogroup" aria-labelledby="lblTipo">
+            <label><input type="radio" name="tipo" value="ENTRADA" {% if form.tipo.value == "ENTRADA" %}checked{% endif %}><span class="in"><svg class="ico"><use href="#i-plus"/></svg>Entrada</span></label>
+            <label><input type="radio" name="tipo" value="SALIDA" {% if form.tipo.value == "SALIDA" %}checked{% endif %}><span class="out"><svg class="ico"><use href="#i-swap"/></svg>Salida</span></label>
+          </div>
+          {% for e in form.tipo.errors %}<span class="err" role="alert">{{ e }}</span>{% endfor %}
+        </div>
+
+        {% include "productos/_campo.html" with field=form.cantidad %}
+        {% include "productos/_campo.html" with field=form.nota %}
+      </div>
+
+      <div class="form-actions">
+        <a class="btn keep-label" href="{% url 'movimiento_lista' %}">Cancelar</a>
+        <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>Registrar movimiento</span></button>
+      </div>
+    </section>
+
+    <aside class="panel resumen reveal" style="--i:2" aria-live="polite">
+      <div class="panel-head"><div><h2>Resumen</h2><p>Así quedará el stock</p></div></div>
+
+      <div id="resVacio" class="res-empty">Selecciona un producto para ver su stock actual y cómo cambiará.</div>
+
+      <div id="resDatos" hidden>
+        <div class="res-prod"><strong id="resNombre"></strong><small id="resSku"></small></div>
+        <div class="res-line"><span>Stock actual</span><strong id="resActual">0</strong></div>
+        <div class="res-line"><span>Cambio</span><strong id="resCambio">0</strong></div>
+        <div class="res-line total"><span>Stock resultante</span><strong id="resFinal">0</strong></div>
+        <p class="res-msg" id="resMsg"></p>
+      </div>
+    </aside>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var sel = document.getElementById('id_producto');
+    var cant = document.getElementById('id_cantidad');
+    var radios = document.querySelectorAll('input[name="tipo"]');
+    var vacio = document.getElementById('resVacio'), datos = document.getElementById('resDatos');
+    var elActual = document.getElementById('resActual'), elCambio = document.getElementById('resCambio');
+    var elFinal = document.getElementById('resFinal'), elMsg = document.getElementById('resMsg');
+
+    function tipo() { var r = document.querySelector('input[name="tipo"]:checked'); return r ? r.value : 'ENTRADA'; }
+
+    function actualizar() {
+      var opt = sel.options[sel.selectedIndex];
+      if (!opt || !opt.value) { vacio.hidden = false; datos.hidden = true; return; }
+      vacio.hidden = true; datos.hidden = false;
+
+      var stock = parseInt(opt.dataset.stock, 10) || 0, min = parseInt(opt.dataset.min, 10) || 0;
+      var n = parseInt(cant.value, 10); if (isNaN(n) || n < 0) n = 0;
+      var delta = tipo() === 'ENTRADA' ? n : -n;
+      var res = stock + delta;
+
+      document.getElementById('resNombre').textContent = opt.textContent.replace(/\s*\(.*\)$/, '');
+      document.getElementById('resSku').textContent = 'SKU ' + opt.dataset.sku + ' · mínimo ' + min;
+      elActual.textContent = stock;
+      elCambio.textContent = (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta);
+      elFinal.textContent = res < 0 ? 0 : res;
+
+      elFinal.className = ''; elMsg.className = 'res-msg'; elMsg.textContent = '';
+      if (res < 0) {
+        elFinal.className = 'bad'; elMsg.className = 'res-msg bad';
+        elMsg.textContent = 'Solo hay ' + stock + ' unidad(es). Reduce la cantidad.';
+      } else if (n > 0 && res <= min) {
+        elFinal.className = 'warn'; elMsg.className = 'res-msg warn';
+        elMsg.textContent = res === 0 ? 'El producto quedará agotado.' : 'El producto quedará con stock bajo.';
+      } else if (n > 0) {
+        elFinal.className = 'good';
+      }
+    }
+
+    sel.addEventListener('change', actualizar);
+    cant.addEventListener('input', actualizar);
+    radios.forEach(function (r) { r.addEventListener('change', actualizar); });
+    actualizar();
+  })();
+</script>
+{% endblock %}

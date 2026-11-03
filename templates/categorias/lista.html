@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Categorías{% endblock %}
+{% block page_title %}Categorías{% endblock %}
+{% block page_sub %}<span class="date">Organiza tus productos por tipo</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .cell-cat { display: flex; align-items: center; gap: 0.8rem; }
+  .cat-ico { width: 40px; height: 40px; flex: none; border-radius: 12px; display: grid; place-items: center; color: var(--primary); background: rgba(59, 130, 246, 0.14); }
+  .row-actions { display: flex; gap: 0.35rem; justify-content: flex-end; }
+  .act { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); transition: color 0.2s, background-color 0.2s, border-color 0.2s; }
+  .act:hover { color: var(--text); background: var(--hover); }
+  .act.danger:hover { color: var(--danger); background: var(--danger-bg); border-color: transparent; }
+  .act:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+  .act .ico { width: 17px; height: 17px; }
+  .empty .btn { margin-top: 0.6rem; }
+
+  dialog { margin: auto; width: min(440px, calc(100vw - 2rem)); padding: 0; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7); }
+  dialog[open] { animation: pop 0.4s var(--ease); }
+  dialog::backdrop { background: rgba(2, 6, 18, 0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  @keyframes pop { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
+  .dlg { padding: 1.5rem; }
+  .dlg h2 { font-size: 1.15rem; letter-spacing: -0.01em; }
+  .dlg > p { color: var(--muted); font-size: 0.9rem; line-height: 1.5; margin-top: 0.4rem; }
+  .dlg .field { margin-top: 1.2rem; }
+  .dlg .btns { display: flex; justify-content: flex-end; gap: 0.7rem; margin-top: 1.5rem; }
+  .dlg .badge-ico { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; color: var(--danger); background: var(--danger-bg); margin-bottom: 1rem; }
+  .dlg .badge-ico .ico { width: 24px; height: 24px; }
+</style>
+{% endblock %}
+
+{% block actions %}
+<button class="btn primary" type="button" id="btnNueva" aria-label="Nueva categoría">
+  <svg class="ico"><use href="#i-plus"/></svg><span>Nueva categoría</span>
+</button>
+{% endblock %}
+
+{% block content %}
+<section class="panel reveal" style="--i:1">
+  <div class="panel-head">
+    <div><h2>Todas las categorías</h2><p>{{ categorias|length }} categoría{{ categorias|length|pluralize }}</p></div>
+  </div>
+
+  {% if categorias %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Categoría</th>
+          <th class="num">Productos</th>
+          <th class="num hide-sm">Unidades en stock</th>
+          <th><span style="position:absolute;left:-9999px">Acciones</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in categorias %}
+        <tr>
+          <td><div class="cell-cat"><div class="cat-ico" aria-hidden="true"><svg class="ico"><use href="#i-tag"/></svg></div><a class="name" href="{% url 'producto_lista' %}?categoria={{ c.pk }}">{{ c.nombre }}</a></div></td>
+          <td class="num">{{ c.num_productos }}</td>
+          <td class="num hide-sm">{{ c.total_stock|default:0 }}</td>
+          <td>
+            <div class="row-actions">
+              <button class="act js-editar" type="button" data-url="{% url 'categoria_editar' c.pk %}" data-nombre="{{ c.nombre }}" aria-label="Editar {{ c.nombre }}" title="Editar"><svg class="ico"><use href="#i-edit"/></svg></button>
+              <button class="act danger js-eliminar" type="button" data-url="{% url 'categoria_eliminar' c.pk %}" data-nombre="{{ c.nombre }}" {% if c.num_productos %}disabled title="Tiene productos asignados"{% else %}title="Eliminar"{% endif %} aria-label="Eliminar {{ c.nombre }}"><svg class="ico"><use href="#i-trash"/></svg></button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="sub" style="margin-top:1rem">Las categorías con productos no se pueden eliminar. Cambia primero la categoría de esos productos.</p>
+  {% else %}
+  <div class="empty static">
+    <svg class="ico"><use href="#i-tag"/></svg>
+    <strong>Aún no tienes categorías</strong>
+    Crea la primera, por ejemplo Laptops, Celulares o Accesorios.
+    <button class="btn primary" type="button" id="btnNuevaVacia"><svg class="ico"><use href="#i-plus"/></svg><span style="display:inline">Nueva categoría</span></button>
+  </div>
+  {% endif %}
+</section>
+
+<!-- Crear / editar -->
+<dialog id="dlgCat" aria-labelledby="dlgCatTitulo">
+  <form method="post" class="dlg" id="formCat" novalidate>
+    {% csrf_token %}
+    <h2 id="dlgCatTitulo">Nueva categoría</h2>
+    <p>Usa un nombre corto y claro. No puede repetirse.</p>
+    <div class="field">
+      <label for="catNombre">Nombre</label>
+      <input class="input" type="text" name="nombre" id="catNombre" maxlength="100" required placeholder="Ej. Laptops" autocomplete="off">
+    </div>
+    <div class="btns">
+      <button class="btn keep-label" type="button" data-cerrar>Cancelar</button>
+      <button class="btn primary keep-label" type="submit"><span>Guardar</span></button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Eliminar -->
+<dialog id="dlgDel" aria-labelledby="dlgDelTitulo">
+  <form method="post" class="dlg" id="formDel">
+    {% csrf_token %}
+    <div class="badge-ico"><svg class="ico"><use href="#i-trash"/></svg></div>
+    <h2 id="dlgDelTitulo">¿Eliminar esta categoría?</h2>
+    <p>Se eliminará <strong id="delNombre"></strong>. Esta acción no se puede deshacer.</p>
+    <div class="btns">
+      <button class="btn keep-label" type="button" data-cerrar>Cancelar</button>
+      <button class="btn danger keep-label" type="submit"><span>Sí, eliminar</span></button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var dlgCat = document.getElementById('dlgCat'), formCat = document.getElementById('formCat');
+    var titulo = document.getElementById('dlgCatTitulo'), nombre = document.getElementById('catNombre');
+    var dlgDel = document.getElementById('dlgDel'), formDel = document.getElementById('formDel');
+
+    function abrirCrear() {
+      formCat.action = "{% url 'categoria_crear' %}";
+      titulo.textContent = 'Nueva categoría';
+      nombre.value = '';
+      dlgCat.showModal();
+      nombre.focus();
+    }
+    var b1 = document.getElementById('btnNueva'), b2 = document.getElementById('btnNuevaVacia');
+    if (b1) b1.addEventListener('click', abrirCrear);
+    if (b2) b2.addEventListener('click', abrirCrear);
+
+    document.querySelectorAll('.js-editar').forEach(function (b) {
+      b.addEventListener('click', function () {
+        formCat.action = b.dataset.url;
+        titulo.textContent = 'Editar categoría';
+        nombre.value = b.dataset.nombre;
+        dlgCat.showModal();
+        nombre.focus();
+        nombre.select();
+      });
+    });
+
+    document.querySelectorAll('.js-eliminar').forEach(function (b) {
+      b.addEventListener('click', function () {
+        formDel.action = b.dataset.url;
+        document.getElementById('delNombre').textContent = '“' + b.dataset.nombre + '”';
+        dlgDel.showModal();
+      });
+    });
+
+    // Cerrar: botón cancelar o clic fuera del cuadro
+    [dlgCat, dlgDel].forEach(function (d) {
+      d.querySelectorAll('[data-cerrar]').forEach(function (b) { b.addEventListener('click', function () { d.close(); }); });
+      d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+    });
+
+    formCat.addEventListener('submit', function (e) {
+      if (!nombre.value.trim()) { e.preventDefault(); nombre.focus(); }
+    });
+  })();
+</script>
+{% endblock %}
