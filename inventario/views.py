@@ -1,7 +1,8 @@
 from datetime import timedelta
 
 from django.contrib import messages
-from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
@@ -11,18 +12,30 @@ from django.utils.dateparse import parse_date
 
 from .forms import CategoriaForm, MovimientoForm, ProductoForm
 from .models import Categoria, Movimiento, Producto
+from .roles import ADMIN, TECNICO, rol_de
+from .roles import solo_admin as staff_required
 
 
-def es_admin(user):
-    return user.is_authenticated and user.is_staff
+# ============================== Inicio y Dashboard ==============================
+@login_required
+def inicio(request):
+    """Lleva a cada usuario a su pantalla según el rol."""
+    rol = rol_de(request.user)
+    if rol == ADMIN:
+        return redirect("dashboard")
+    if rol == TECNICO:
+        return redirect("tecnico_panel")
+    raise PermissionDenied
 
 
-staff_required = user_passes_test(es_admin, login_url="login")
-
-
-# ============================== Dashboard ==============================
-@staff_required
+@login_required
 def dashboard(request):
+    rol = rol_de(request.user)
+    if rol == TECNICO:
+        return redirect("tecnico_panel")
+    if rol != ADMIN:
+        raise PermissionDenied
+
     productos = Producto.objects.filter(activo=True)
 
     valor_inventario = productos.aggregate(
@@ -66,7 +79,7 @@ def dashboard(request):
         "dias_labels": [d.strftime("%d/%m") for d in dias],
         "entradas": [tabla.get((d, "ENTRADA"), 0) for d in dias],
         "salidas": [tabla.get((d, "SALIDA"), 0) for d in dias],
-        "ultimos_movimientos": Movimiento.objects.select_related("producto", "usuario")[:6],
+        "ultimos_movimientos": Movimiento.objects.select_related("producto", "usuario").order_by("-fecha", "-pk")[:6],
     }
     return render(request, "dashboard.html", contexto)
 

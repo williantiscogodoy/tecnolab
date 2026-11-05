@@ -1,10 +1,11 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import views
+from . import tecnico, views
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
+    path("inicio/", views.inicio, name="inicio"),
     path(
         "login/",
         auth_views.LoginView.as_view(
@@ -25,6 +26,10 @@ urlpatterns = [
     path("categorias/guardar/", views.categoria_guardar, name="categoria_crear"),
     path("categorias/<int:pk>/guardar/", views.categoria_guardar, name="categoria_editar"),
     path("categorias/<int:pk>/eliminar/", views.categoria_eliminar, name="categoria_eliminar"),
+
+    # Panel técnico
+    path("tecnico/", tecnico.tecnico_panel, name="tecnico_panel"),
+    path("tecnico/retirar/<int:pk>/", tecnico.tecnico_retirar, name="tecnico_retirar"),
 
     # Movimientos
     path("movimientos/", views.movimiento_lista, name="movimiento_lista"),

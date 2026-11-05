@@ -162,6 +162,21 @@
     :root[data-theme="light"] .badge.out { color: #be123c; }
     :root[data-theme="light"] .badge.in { color: #047857; }
 
+    .badge.tec { background: rgba(59, 130, 246, 0.15); color: var(--primary); }
+    :root[data-theme="light"] .badge.tec { color: #1d4ed8; }
+
+    /* Interruptor reutilizable */
+    .switch { display: flex; align-items: center; justify-content: space-between; gap: 1rem; cursor: pointer; }
+    .switch strong { display: block; font-size: 0.92rem; font-weight: 600; }
+    .switch small { color: var(--muted); font-size: 0.8rem; line-height: 1.4; display: block; margin-top: 0.15rem; }
+    .sw { position: relative; flex: none; }
+    .sw input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+    .track { display: block; width: 46px; height: 27px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); position: relative; transition: background-color 0.3s, border-color 0.3s; }
+    .track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 21px; height: 21px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); transition: transform 0.35s var(--ease); }
+    .sw input:checked + .track { background: var(--primary); border-color: transparent; }
+    .sw input:checked + .track::after { transform: translateX(19px); }
+    .sw input:focus-visible + .track { outline: 2px solid var(--primary); outline-offset: 2px; }
+
     /* ============================== Formularios ============================== */
     .field { display: grid; gap: 0.4rem; min-width: 0; }
     .field label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
@@ -248,6 +263,8 @@
       <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></symbol>
       <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
       <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+      <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+      <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
     </defs>
   </svg>
 
@@ -259,12 +276,17 @@
     </div>
 
     <nav class="nav">
+      {% if not request.user.is_staff %}
+      <a href="{% url 'tecnico_panel' %}" aria-current="page"><svg class="ico"><use href="#i-wrench"/></svg>Panel técnico</a>
+      {% else %}
       <a href="{% url 'dashboard' %}" {% if url == 'dashboard' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-grid"/></svg>Panel general</a>
       <a href="{% url 'producto_lista' %}" {% if url|slice:':8' == 'producto' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-box"/></svg>Productos</a>
       <a href="{% url 'categoria_lista' %}" {% if url|slice:':9' == 'categoria' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-tag"/></svg>Categorías</a>
       <a href="{% url 'movimiento_lista' %}" {% if url|slice:':10' == 'movimiento' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-swap"/></svg>Movimientos</a>
+      <a href="{% url 'tecnico_panel' %}" {% if url|slice:':7' == 'tecnico' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-wrench"/></svg>Panel técnico</a>
       <hr>
       <a href="/admin/"><svg class="ico"><use href="#i-sliders"/></svg>Administración</a>
+      {% endif %}
     </nav>
 
     <div class="side-foot">
@@ -272,7 +294,7 @@
         <div class="avatar" aria-hidden="true">{{ request.user.get_username|first|upper }}</div>
         <div class="me-info">
           <strong>{{ request.user.get_username }}</strong>
-          <small>{% if request.user.is_superuser %}Superadministrador{% else %}Administrador{% endif %}</small>
+          <small>{% if request.user.is_superuser %}Superadministrador{% elif request.user.is_staff %}Administrador{% else %}Técnico{% endif %}</small>
         </div>
       </div>
       <form method="post" action="{% url 'logout' %}">

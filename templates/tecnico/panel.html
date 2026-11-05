@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}Panel técnico{% endblock %}
+{% block page_title %}Panel técnico{% endblock %}
+{% block page_sub %}<span class="date">Pantallas, puentes de carga y repuestos</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ---------- Búsqueda ---------- */
+  .hero { padding: 1.4rem; }
+  .hero h2 { font-size: 1.15rem; letter-spacing: -0.01em; margin-bottom: 0.9rem; }
+  .big-search { position: relative; }
+  .big-search .ico { position: absolute; left: 1.1rem; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; color: var(--primary); pointer-events: none; }
+  .big-search input { width: 100%; font: inherit; font-size: 1.1rem; padding: 1.05rem 7rem 1.05rem 3.2rem; color: var(--text); background: var(--surface-2); border: 1.5px solid var(--border); border-radius: 16px; transition: border-color 0.25s, box-shadow 0.25s; }
+  .big-search input::placeholder { color: var(--muted); opacity: 0.6; }
+  .big-search input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2); }
+  .big-search button { position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); padding: 0.65rem 1.1rem; border: 0; border-radius: 11px; font-weight: 600; color: #fff; background: linear-gradient(135deg, var(--primary), var(--primary-strong)); }
+  .hint-keys { margin-top: 0.6rem; font-size: 0.8rem; color: var(--muted); }
+  .hint-keys kbd { font: inherit; font-size: 0.75rem; padding: 0.05rem 0.4rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
+
+  .pills { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.1rem; }
+  .pill { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.5rem 0.9rem; border-radius: 999px; font-size: 0.88rem; font-weight: 600; color: var(--muted); border: 1px solid var(--border); background: transparent; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+  .pill:hover { color: var(--text); background: var(--hover); }
+  .pill[aria-current="true"] { color: var(--primary); border-color: rgba(59, 130, 246, 0.45); background: rgba(59, 130, 246, 0.12); }
+  .pill small { font-weight: 600; opacity: 0.75; }
+  .pill.warn[aria-current="true"] { color: var(--warn); border-color: rgba(245, 158, 11, 0.45); background: var(--warn-bg); }
+  .pills .sep-v { width: 1px; background: var(--border); margin: 0.2rem 0.2rem; }
+
+  /* ---------- Resumen ---------- */
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.2rem; }
+  .stat { display: flex; align-items: center; gap: 0.9rem; padding: 1rem 1.2rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .stat .chip { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; }
+  .chip.blue { color: var(--primary); background: rgba(59, 130, 246, 0.14); }
+  .chip.warn { color: var(--warn); background: var(--warn-bg); }
+  .chip.red { color: var(--danger); background: var(--danger-bg); }
+  .stat small { display: block; color: var(--muted); font-size: 0.82rem; }
+  .stat strong { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+  /* ---------- Tarjetas ---------- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+  .group-title { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.6rem; margin-top: 0.4rem; font-size: 0.95rem; font-weight: 700; }
+  .group-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .group-title:first-child { margin-top: 0; }
+  .group-title .ico { width: 18px; height: 18px; color: var(--primary); }
+
+  .card { display: flex; flex-direction: column; gap: 0.9rem; padding: 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 16px; transition: border-color 0.25s, transform 0.3s var(--ease); }
+  .card:hover { border-color: rgba(59, 130, 246, 0.4); transform: translateY(-2px); }
+  .card.tec { border-left: 3px solid var(--primary); }
+  .card-top { display: flex; gap: 0.8rem; align-items: flex-start; }
+  .thumb { width: 60px; height: 60px; flex: none; border-radius: 13px; object-fit: cover; background: var(--surface); border: 1px solid var(--border); }
+  .thumb.ph { display: grid; place-items: center; color: var(--muted); }
+  .card h3 { font-size: 0.98rem; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
+  .card .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; margin-top: 0.3rem; font-size: 0.78rem; color: var(--muted); }
+  .badge.tec { background: rgba(59, 130, 246, 0.15); color: var(--primary); }
+  .card-stock { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.6rem; }
+  .card-stock .n { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .card-stock .n small { font-size: 0.78rem; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: 0.3rem; }
+  .card .btn { width: 100%; }
+  .card .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .pager { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.88rem; color: var(--muted); }
+  .pager .btns { display: flex; gap: 0.5rem; }
+  .btn[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
+  .empty .btn { margin-top: 0.6rem; }
+
+  .qty.out { color: var(--danger); font-weight: 700; }
+  :root[data-theme="light"] .qty.out { color: #be123c; }
+  :root[data-theme="light"] .badge.tec { color: #1d4ed8; }
+  .nota { color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ---------- Diálogo de retiro ---------- */
+  dialog { margin: auto; width: min(420px, calc(100vw - 2rem)); padding: 0; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7); }
+  dialog[open] { animation: pop 0.4s var(--ease); }
+  dialog::backdrop { background: rgba(2, 6, 18, 0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  @keyframes pop { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
+  .dlg { padding: 1.5rem; display: grid; gap: 1.1rem; }
+  .dlg h2 { font-size: 1.15rem; letter-spacing: -0.01em; }
+  .dlg .who { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+  .dlg .who strong { color: var(--text); }
+  .stepper { display: grid; grid-template-columns: 52px 1fr 52px; gap: 0.5rem; }
+  .stepper button { border: 1px solid var(--border); background: var(--surface-2); border-radius: 12px; display: grid; place-items: center; transition: background-color 0.2s; }
+  .stepper button:hover { background: var(--hover); }
+  .stepper input { text-align: center; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .stepper input { -moz-appearance: textfield; appearance: textfield; }
+  .dlg .btns { display: flex; justify-content: flex-end; gap: 0.7rem; }
+
+  @media (max-width: 700px) {
+    .stats { gap: 0.7rem; }
+    .stat { flex-direction: column; align-items: flex-start; gap: 0.6rem; padding: 0.9rem; }
+    .hero { padding: 1.1rem; }
+    .big-search button { display: none; }
+    .big-search input { padding-right: 1rem; font-size: 1rem; }
+    .hint-keys { display: none; }
+    .grid { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Búsqueda -->
+<section class="panel hero reveal" style="--i:1">
+  <h2>¿Qué pieza necesitas?</h2>
+  <form method="get" role="search" class="big-search" id="formBuscar">
+    <svg class="ico"><use href="#i-search"/></svg>
+    <input type="search" name="q" id="q" value="{{ q }}" placeholder="Ej. pantalla Samsung A12, puente de carga…" aria-label="Buscar piezas y repuestos" autocomplete="off">
+    {% if solo_bajo %}<input type="hidden" name="bajo" value="1">{% endif %}
+    {% if ver_todo %}<input type="hidden" name="todo" value="1">{% endif %}
+    <button type="submit">Buscar</button>
+  </form>
+  <p class="hint-keys">Escribe varias palabras para afinar la búsqueda. Pulsa <kbd>/</kbd> para ir al buscador.</p>
+
+  <div class="pills" aria-label="Filtros">
+    {% for c in chips %}
+      <a class="pill" href="{{ c.url }}" {% if c.activo %}aria-current="true"{% endif %}>{{ c.nombre }}{% if c.n is not None %} <small>{{ c.n }}</small>{% endif %}</a>
+    {% endfor %}
+    <span class="sep-v" aria-hidden="true"></span>
+    <a class="pill warn" href="{{ url_bajo }}" {% if solo_bajo %}aria-current="true"{% endif %}><svg class="ico" style="width:16px;height:16px"><use href="#i-alert"/></svg>Stock bajo</a>
+    {% if not q %}<a class="pill" href="{{ url_todo }}" {% if ver_todo %}aria-current="true"{% endif %}>Incluir otros productos</a>{% endif %}
+  </div>
+</section>
+
+<!-- Resumen de piezas técnicas -->
+<section class="stats reveal" style="--i:2" aria-label="Resumen de piezas técnicas">
+  <div class="stat"><div class="chip blue"><svg class="ico"><use href="#i-wrench"/></svg></div><div><small>Piezas técnicas</small><strong>{{ resumen.total }}</strong></div></div>
+  <div class="stat"><div class="chip warn"><svg class="ico"><use href="#i-alert"/></svg></div><div><small>Con stock bajo</small><strong>{{ resumen.bajas }}</strong></div></div>
+  <div class="stat"><div class="chip red"><svg class="ico"><use href="#i-x"/></svg></div><div><small>Agotadas</small><strong>{{ resumen.agotadas }}</strong></div></div>
+</section>
+
+<!-- Resultados -->
+<section class="panel reveal" style="--i:3">
+  {% if page_obj %}
+  <div class="grid">
+    {% for p in page_obj %}
+      {% ifchanged p.categoria.es_tecnica %}
+        <h3 class="group-title">{% if p.categoria.es_tecnica %}<svg class="ico"><use href="#i-wrench"/></svg>Piezas técnicas{% else %}Otros productos{% endif %}</h3>
+      {% endifchanged %}
+
+      <article class="card {% if p.categoria.es_tecnica %}tec{% endif %}">
+        <div class="card-top">
+          {% if p.imagen %}<img class="thumb" src="{{ p.imagen.url }}" alt="" loading="lazy">
+          {% else %}<div class="thumb ph" aria-hidden="true"><svg class="ico"><use href="#i-image"/></svg></div>{% endif %}
+          <div style="min-width:0">
+            <h3>{{ p.nombre }}</h3>
+            <div class="meta">
+              <span>{{ p.sku }}</span>
+              {% if p.categoria.es_tecnica %}<span class="badge tec">Técnico</span>{% endif %}
+              <span>{{ p.categoria.nombre }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-stock">
+          <div class="n">{{ p.stock }}<small>disponible{{ p.stock|pluralize }}</small></div>
+          {% if p.stock == 0 %}<span class="badge out">Agotado</span>
+          {% elif p.stock <= p.stock_minimo %}<span class="badge low">Stock bajo</span>
+          {% else %}<span class="badge in">Disponible</span>{% endif %}
+        </div>
+
+        {% if p.categoria.es_tecnica or request.user.is_staff %}
+        <button class="btn primary js-retirar" type="button" data-url="{% url 'tecnico_retirar' p.pk %}" data-nombre="{{ p.nombre }}" data-stock="{{ p.stock }}" {% if p.stock == 0 %}disabled{% endif %}>
+          <svg class="ico"><use href="#i-swap"/></svg><span style="display:inline">Retirar pieza</span>
+        </button>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+
+  <div class="pager">
+    <span>Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="btns">
+      <a class="btn keep-label" href="?{% if qs %}{{ qs }}&{% endif %}page={{ pag_anterior }}" {% if not page_obj.has_previous %}aria-disabled="true" tabindex="-1"{% endif %}>Anterior</a>
+      <a class="btn keep-label" href="?{% if qs %}{{ qs }}&{% endif %}page={{ pag_siguiente }}" {% if not page_obj.has_next %}aria-disabled="true" tabindex="-1"{% endif %}>Siguiente</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% else %}
+  <div class="empty static">
+    <svg class="ico"><use href="#i-search"/></svg>
+    {% if q or solo_bajo or ver_todo %}
+      <strong>No encontramos piezas con esa búsqueda</strong>
+      Prueba con menos palabras o revisa la ortografía.
+      <a class="btn keep-label" href="{{ url_limpiar }}">Limpiar búsqueda</a>
+    {% elif not hay_categorias %}
+      <strong>Aún no hay categorías técnicas</strong>
+      {% if request.user.is_staff %}Marca una categoría como “técnica” en <a class="link" href="{% url 'categoria_lista' %}">Categorías</a> y sus productos aparecerán aquí.{% else %}Pide al administrador que marque las categorías de tu área.{% endif %}
+    {% else %}
+      <strong>No hay piezas técnicas todavía</strong>
+      Cuando se registren productos en categorías técnicas, aparecerán aquí.
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+<!-- Mis últimos retiros -->
+{% if retiros %}
+<section class="panel reveal" style="--i:4">
+  <div class="panel-head"><div><h2>Mis últimos retiros</h2><p>Lo que has sacado del inventario</p></div></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Producto</th><th class="num">Cant.</th><th class="hide-sm">Nota</th></tr></thead>
+      <tbody>
+        {% for m in retiros %}
+        <tr>
+          <td style="white-space:nowrap">{{ m.fecha|date:"d/m H:i" }}</td>
+          <td><span class="name">{{ m.producto.nombre }}</span><span class="sub">{{ m.producto.sku }}</span></td>
+          <td class="num"><span class="qty out">−{{ m.cantidad }}</span></td>
+          <td class="hide-sm nota" title="{{ m.nota }}">{{ m.nota|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<!-- Diálogo de retiro -->
+<dialog id="dlgRetiro" aria-labelledby="dlgTitulo">
+  <form method="post" class="dlg" id="formRetiro">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <div>
+      <h2 id="dlgTitulo">Retirar pieza</h2>
+      <p class="who"><strong id="rNombre"></strong> · <span id="rStock"></span> disponible(s)</p>
+    </div>
+
+    <div class="field">
+      <label for="rCantidad">Cantidad</label>
+      <div class="stepper">
+        <button type="button" id="rMenos" aria-label="Quitar una unidad"><svg class="ico"><use href="#i-minus"/></svg></button>
+        <input class="input" type="number" name="cantidad" id="rCantidad" min="1" value="1" inputmode="numeric" required>
+        <button type="button" id="rMas" aria-label="Agregar una unidad"><svg class="ico"><use href="#i-plus"/></svg></button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="rNota">Para qué se usa (opcional)</label>
+      <input class="input" type="text" name="nota" id="rNota" maxlength="180" placeholder="Ej. Cambio de pantalla, equipo de Juan Pérez" autocomplete="off">
+    </div>
+
+    <div class="btns">
+      <button class="btn keep-label" type="button" id="rCancelar">Cancelar</button>
+      <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>Confirmar retiro</span></button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var q = document.getElementById('q');
+
+    // Atajo "/" para ir al buscador; en computadora se enfoca solo
+    document.addEventListener('keydown', function (e) {
+      var tag = (document.activeElement && document.activeElement.tagName) || '';
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') { e.preventDefault(); q.focus(); q.select(); }
+    });
+    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches && !q.value) q.focus();
+
+    // Retiro de piezas
+    var dlg = document.getElementById('dlgRetiro'), form = document.getElementById('formRetiro');
+    var cant = document.getElementById('rCantidad'), stock = 0;
+
+    function clamp(n) { n = parseInt(n, 10); if (isNaN(n) || n < 1) n = 1; return Math.min(n, stock); }
+
+    document.querySelectorAll('.js-retirar').forEach(function (b) {
+      b.addEventListener('click', function () {
+        stock = parseInt(b.dataset.stock, 10) || 0;
+        form.action = b.dataset.url;
+        document.getElementById('rNombre').textContent = b.dataset.nombre;
+        document.getElementById('rStock').textContent = stock;
+        cant.max = stock; cant.value = 1;
+        document.getElementById('rNota').value = '';
+        dlg.showModal();
+        cant.select();
+      });
+    });
+
+    document.getElementById('rMenos').addEventListener('click', function () { cant.value = clamp((parseInt(cant.value, 10) || 1) - 1); });
+    document.getElementById('rMas').addEventListener('click', function () { cant.value = clamp((parseInt(cant.value, 10) || 0) + 1); });
+    cant.addEventListener('change', function () { cant.value = clamp(cant.value); });
+
+    document.getElementById('rCancelar').addEventListener('click', function () { dlg.close(); });
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+    form.addEventListener('submit', function () { cant.value = clamp(cant.value); });
+  })();
+</script>
+{% endblock %}
