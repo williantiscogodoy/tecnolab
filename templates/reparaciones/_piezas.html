@@ -1,0 +1,99 @@
+{% if piezas %}
+<datalist id="dlPiezas">{% for p in piezas %}<option value="{{ p.label }}">{% endfor %}</datalist>
+<div id="filas" class="filas"></div>
+<span class="err" id="filasError" role="alert" style="color:var(--danger);font-size:.84rem;display:block;margin-top:.5rem" hidden></span>
+<button type="button" class="btn keep-label" id="btnFila" style="margin-top:.8rem"><svg class="ico"><use href="#i-plus"/></svg><span>Agregar otra pieza</span></button>
+{{ piezas|json_script:"piezas-json" }}
+{{ filas|json_script:"filas-json" }}
+
+<style>
+  .filas { display: grid; gap: 0.6rem; }
+  .fila { display: grid; grid-template-columns: minmax(0, 1fr) 84px 40px; gap: 0.5rem; align-items: center; }
+  .fila .input.invalida { border-color: var(--danger); }
+  .fila .cant { text-align: center; padding-left: 0.4rem; padding-right: 0.4rem; }
+  .fila .quitar { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); }
+  .fila .quitar:hover { color: var(--danger); background: var(--danger-bg); border-color: transparent; }
+</style>
+
+<script>
+  (function () {
+    var piezas = JSON.parse(document.getElementById('piezas-json').textContent);
+    var iniciales = JSON.parse(document.getElementById('filas-json').textContent);
+    var cont = document.getElementById('filas'), btn = document.getElementById('btnFila');
+    var err = document.getElementById('filasError'), form = cont.closest('form');
+    var porId = {}, porLabel = {};
+    piezas.forEach(function (p) { porId[p.id] = p; porLabel[p.label.toLowerCase()] = p; });
+
+    // Coincidencia exacta, o única si lo escrito aparece en una sola pieza
+    function buscar(texto) {
+      var t = texto.trim().toLowerCase();
+      if (!t) return null;
+      if (porLabel[t]) return porLabel[t];
+      var c = piezas.filter(function (p) { return p.label.toLowerCase().indexOf(t) !== -1; });
+      return c.length === 1 ? c[0] : null;
+    }
+
+    function fila(datos) {
+      var d = document.createElement('div');
+      d.className = 'fila';
+      d.innerHTML =
+        '<input type="hidden" name="pieza">' +
+        '<input class="input" type="text" name="pieza_texto" list="dlPiezas" placeholder="Escribe para buscar la pieza…" autocomplete="off" aria-label="Pieza">' +
+        '<input class="input cant" type="number" name="cantidad" min="1" value="1" inputmode="numeric" aria-label="Cantidad">' +
+        '<button type="button" class="quitar" aria-label="Quitar pieza"><svg class="ico" style="width:17px;height:17px"><use href="#i-x"/></svg></button>';
+      var id = d.children[0], texto = d.children[1], cant = d.children[2], quitar = d.children[3];
+
+      function fijar(p) {
+        id.value = p ? p.id : '';
+        if (p) { texto.value = p.label; cant.max = p.stock; if (+cant.value > p.stock) cant.value = p.stock; }
+        else { cant.removeAttribute('max'); }
+        texto.classList.remove('invalida');
+      }
+      texto.addEventListener('input', function () { fijar(porLabel[texto.value.trim().toLowerCase()] || null); });
+      texto.addEventListener('change', function () { var p = buscar(texto.value); if (p) fijar(p); });
+      cant.addEventListener('change', function () {
+        var n = parseInt(cant.value, 10); if (isNaN(n) || n < 1) n = 1;
+        var p = porId[id.value]; if (p && n > p.stock) n = p.stock;
+        cant.value = n;
+      });
+      quitar.addEventListener('click', function () {
+        d.remove();
+        if (!cont.children.length) cont.appendChild(fila());
+      });
+
+      if (datos) {
+        texto.value = datos.label || '';
+        cant.value = datos.cantidad || 1;
+        var p = porId[datos.id] || buscar(texto.value);
+        if (p) { id.value = p.id; cant.max = p.stock; }
+      }
+      return d;
+    }
+
+    (iniciales.length ? iniciales : [null]).forEach(function (f) { cont.appendChild(fila(f)); });
+    btn.addEventListener('click', function () { var f = fila(); cont.appendChild(f); f.children[1].focus(); });
+
+    // No dejar enviar piezas escritas a medias
+    form.addEventListener('submit', function (e) {
+      err.hidden = true;
+      var mala = null;
+      Array.prototype.forEach.call(cont.children, function (d) {
+        var texto = d.children[1];
+        if (texto.value.trim() && !d.children[0].value) {
+          var p = buscar(texto.value);
+          if (p) { d.children[0].value = p.id; texto.value = p.label; }
+          else { texto.classList.add('invalida'); mala = mala || texto; }
+        }
+      });
+      if (mala) {
+        e.preventDefault();
+        err.textContent = 'Elige la pieza desde la lista de sugerencias.';
+        err.hidden = false;
+        mala.focus();
+      }
+    });
+  })();
+</script>
+{% else %}
+<p class="sub" style="margin:0">No hay piezas con stock disponible{% if not es_admin %} en categorías técnicas{% endif %}. Avisa al administrador si necesitas reponer.</p>
+{% endif %}

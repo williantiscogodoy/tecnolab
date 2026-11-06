@@ -162,6 +162,7 @@
     :root[data-theme="light"] .badge.out { color: #be123c; }
     :root[data-theme="light"] .badge.in { color: #047857; }
 
+    .cargando { opacity: 0.45; pointer-events: none; transition: opacity 0.2s; }
     .badge.tec { background: rgba(59, 130, 246, 0.15); color: var(--primary); }
     :root[data-theme="light"] .badge.tec { color: #1d4ed8; }
 
@@ -264,6 +265,10 @@
       <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
       <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
       <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+      <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></symbol>
+      <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+      <symbol id="i-chev-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+      <symbol id="i-chev-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
       <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
     </defs>
   </svg>
@@ -277,13 +282,15 @@
 
     <nav class="nav">
       {% if not request.user.is_staff %}
-      <a href="{% url 'tecnico_panel' %}" aria-current="page"><svg class="ico"><use href="#i-wrench"/></svg>Panel técnico</a>
+      <a href="{% url 'tecnico_panel' %}" {% if url|slice:':7' == 'tecnico' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-wrench"/></svg>Panel técnico</a>
+      <a href="{% url 'reparacion_lista' %}" {% if url|slice:':10' == 'reparacion' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-phone"/></svg>Reparaciones</a>
       {% else %}
       <a href="{% url 'dashboard' %}" {% if url == 'dashboard' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-grid"/></svg>Panel general</a>
       <a href="{% url 'producto_lista' %}" {% if url|slice:':8' == 'producto' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-box"/></svg>Productos</a>
       <a href="{% url 'categoria_lista' %}" {% if url|slice:':9' == 'categoria' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-tag"/></svg>Categorías</a>
       <a href="{% url 'movimiento_lista' %}" {% if url|slice:':10' == 'movimiento' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-swap"/></svg>Movimientos</a>
       <a href="{% url 'tecnico_panel' %}" {% if url|slice:':7' == 'tecnico' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-wrench"/></svg>Panel técnico</a>
+      <a href="{% url 'reparacion_lista' %}" {% if url|slice:':10' == 'reparacion' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-phone"/></svg>Reparaciones</a>
       <hr>
       <a href="/admin/"><svg class="ico"><use href="#i-sliders"/></svg>Administración</a>
       {% endif %}
@@ -371,6 +378,58 @@
         setTimeout(close, 5000 + i * 800);
       });
     })();
+  </script>
+  <script>
+    /* Búsqueda en vivo reutilizable: pide al servidor solo los trozos de página que cambian */
+    window.TL = window.TL || {};
+    TL.vivo = function (cfg) {
+      var input = cfg.input, regiones = cfg.regiones, timer = null, ctrl = null;
+
+      function pedir(u) {
+        if (ctrl) ctrl.abort();
+        ctrl = new AbortController();
+        Object.keys(regiones).forEach(function (k) { regiones[k].classList.add('cargando'); });
+        var f = new URL(u.href);
+        f.searchParams.set('partial', '1');
+        fetch(f.pathname + f.search, { headers: { 'X-Requested-With': 'fetch' }, signal: ctrl.signal, credentials: 'same-origin' })
+          .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
+          .then(function (d) {
+            Object.keys(regiones).forEach(function (k) {
+              if (d[k] !== undefined) regiones[k].innerHTML = d[k];
+              regiones[k].classList.remove('cargando');
+            });
+            history.replaceState(null, '', u.pathname + u.search);
+            if (cfg.alActualizar) cfg.alActualizar();
+          })
+          .catch(function (e) { if (e.name !== 'AbortError') window.location.href = u.href; });
+      }
+
+      function conTexto(u) {
+        var q = input.value.trim();
+        if (q) u.searchParams.set('q', q); else u.searchParams.delete('q');
+        return u;
+      }
+      function actual() {
+        var u = new URL(location.href);
+        u.searchParams.delete('page'); u.searchParams.delete('partial');
+        return conTexto(u);
+      }
+
+      input.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () { pedir(actual()); }, 220);
+      });
+      input.form.addEventListener('submit', function (e) {
+        e.preventDefault(); clearTimeout(timer); pedir(actual());
+      });
+      document.addEventListener('click', function (e) {
+        var a = e.target.closest('a[data-vivo]');
+        if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        if (a.hasAttribute('data-limpiar')) input.value = '';
+        pedir(conTexto(new URL(a.href)));
+      });
+    };
   </script>
   {% block extra_js %}{% endblock %}
 </body>

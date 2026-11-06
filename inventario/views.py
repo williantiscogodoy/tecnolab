@@ -87,7 +87,7 @@ def dashboard(request):
 # ============================== Productos ==============================
 @staff_required
 def producto_lista(request):
-    productos = Producto.objects.select_related("categoria")
+    productos = Producto.objects.select_related("categoria").prefetch_related("imagenes")
 
     q = request.GET.get("q", "").strip()
     categoria = request.GET.get("categoria", "")
@@ -133,6 +133,7 @@ def producto_crear(request):
         stock_inicial = form.cleaned_data.get("stock") or 0
         producto.stock = 0
         producto.save()
+        form.guardar_referencias(producto)
 
         # El stock inicial entra como un movimiento, así queda en el historial
         if stock_inicial:
@@ -158,7 +159,8 @@ def producto_editar(request, pk):
     form = ProductoForm(request.POST or None, request.FILES or None, instance=producto)
 
     if request.method == "POST" and form.is_valid():
-        form.save()
+        producto = form.save()
+        form.guardar_referencias(producto)
         messages.success(request, f"Los cambios en “{producto.nombre}” se guardaron.")
         return redirect("producto_lista")
 

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}{{ rep.codigo }}{% endblock %}
+{% block page_title %}{{ rep.codigo }} · {{ rep.cliente }}{% endblock %}
+{% block page_sub %}<span class="date">{{ rep.equipo }}</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .back { margin-bottom: -0.4rem; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+  .stack { display: grid; gap: 1.2rem; min-width: 0; }
+  .info { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 0.85rem 1rem; }
+  .info dt { color: var(--muted); font-size: 0.86rem; padding-top: 0.1rem; }
+  .info dd { font-weight: 500; overflow-wrap: anywhere; white-space: pre-line; }
+  .info dd a { color: var(--primary); font-weight: 600; }
+  .head-line { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .fields { display: grid; gap: 1rem; }
+  .note { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.83rem; color: var(--muted); line-height: 1.45; margin-bottom: 0.9rem; }
+  .note .ico { width: 17px; height: 17px; margin-top: 1px; color: var(--primary); }
+  .qty.out { color: var(--danger); font-weight: 700; }
+  :root[data-theme="light"] .qty.out { color: #be123c; }
+  @media (max-width: 1000px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) { .info { grid-template-columns: minmax(0, 1fr); gap: 0.15rem; } .info dd { margin-bottom: 0.7rem; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<a class="link back reveal" href="{% url 'reparacion_lista' %}"><svg class="ico"><use href="#i-arrow-left"/></svg>Volver a reparaciones</a>
+
+<div class="cols">
+  <div class="stack">
+    <section class="panel reveal" style="--i:1">
+      <div class="panel-head">
+        <div class="head-line" style="width:100%"><div><h2>Datos de la reparación</h2><p>Registrada el {{ rep.creado|date:"d/m/Y \a \l\a\s H:i" }}</p></div>{% include "reparaciones/_estado.html" with r=rep %}</div>
+      </div>
+      <dl class="info">
+        <dt>Cliente</dt><dd>{{ rep.cliente }}</dd>
+        <dt>Teléfono</dt><dd>{% if rep.telefono_cliente %}<a href="tel:{{ rep.telefono_cliente }}">{{ rep.telefono_cliente }}</a>{% else %}—{% endif %}</dd>
+        <dt>Equipo</dt><dd>{{ rep.equipo }}</dd>
+        <dt>Arreglo</dt><dd>{{ rep.trabajo|default:"—" }}</dd>
+        <dt>Técnico</dt><dd>{{ rep.tecnico.get_username|default:"—" }}</dd>
+        <dt>Última actualización</dt><dd>{{ rep.actualizado|date:"d/m/Y H:i" }}</dd>
+      </dl>
+    </section>
+
+    <section class="panel reveal" style="--i:2">
+      <div class="panel-head"><div><h2>Piezas usadas</h2><p>Descontadas del inventario</p></div></div>
+      {% if rep.piezas.all %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Pieza</th><th class="num">Cant.</th><th class="hide-sm">Fecha</th></tr></thead>
+          <tbody>
+            {% for pz in rep.piezas.all %}
+            <tr>
+              <td><span class="name">{{ pz.producto.nombre }}</span>{% if pz.producto.sku %}<span class="sub">{{ pz.producto.sku }}</span>{% endif %}</td>
+              <td class="num"><span class="qty out">−{{ pz.cantidad }}</span></td>
+              <td class="hide-sm" style="white-space:nowrap">{{ pz.creado|date:"d/m/Y H:i" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty static" style="min-height:120px"><svg class="ico"><use href="#i-wrench"/></svg><strong>Sin piezas del inventario</strong>Este trabajo no usó repuestos.</div>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="panel reveal" style="--i:3">
+      <div class="panel-head"><div><h2>Seguimiento</h2><p>Cambia el estado y anota avances</p></div></div>
+      <form method="post" action="{% url 'reparacion_actualizar' rep.pk %}" class="fields">
+        {% csrf_token %}
+        <div class="field"><label for="{{ estado_form.estado.id_for_label }}">Estado</label>{{ estado_form.estado }}</div>
+        <div class="field"><label for="{{ estado_form.notas.id_for_label }}">Notas</label>{{ estado_form.notas }}</div>
+        <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>Guardar cambios</span></button>
+      </form>
+    </section>
+
+    <section class="panel reveal" style="--i:4">
+      <div class="panel-head"><div><h2>Agregar piezas</h2><p>Se descuentan al instante</p></div></div>
+      {% if rep.abierta %}
+      <form method="post" action="{% url 'reparacion_pieza' rep.pk %}" id="formPiezas">
+        {% csrf_token %}
+        <p class="note"><svg class="ico"><use href="#i-info"/></svg><span>Úsalo si necesitas otra pieza después de empezar el arreglo.</span></p>
+        {% include "reparaciones/_piezas.html" %}
+        {% if piezas %}<button class="btn primary keep-label" type="submit" style="width:100%;margin-top:1rem"><svg class="ico"><use href="#i-swap"/></svg><span>Descontar del inventario</span></button>{% endif %}
+      </form>
+      {% else %}
+      <p class="sub" style="margin:0">Esta reparación está cerrada. Cambia el estado a “En proceso” para agregar más piezas.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

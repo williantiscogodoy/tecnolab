@@ -45,6 +45,19 @@
   .note { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.83rem; color: var(--muted); line-height: 1.45; }
   .note .ico { width: 17px; height: 17px; margin-top: 1px; color: var(--primary); }
 
+  .refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 0.6rem; }
+  .refs:empty { display: none; }
+  .refs + .refs { margin-top: 0.6rem; }
+  .ref { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; }
+  .ref img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 0.25s; }
+  .ref input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; cursor: pointer; }
+  .ref .x { position: absolute; inset: auto 0 0 0; display: flex; align-items: center; justify-content: center; gap: 0.3rem; padding: 0.3rem; font-size: 0.72rem; font-weight: 600; color: #fff; background: rgba(2, 6, 18, 0.74); opacity: 0; transition: opacity 0.2s, background-color 0.2s; border: 0; }
+  .ref .x .ico { width: 13px; height: 13px; }
+  .ref:hover .x, .ref:focus-within .x { opacity: 1; }
+  .ref:has(input:checked) .x { opacity: 1; background: var(--danger); }
+  .ref:has(input:checked) img { opacity: 0.3; }
+  .ref.nueva .x { opacity: 1; cursor: pointer; }
+  .ref-add { margin-top: 0.9rem; }
   .form-actions { display: flex; justify-content: flex-end; gap: 0.7rem; }
 
   @media (max-width: 1000px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -112,6 +125,20 @@
       </section>
 
       <section class="panel reveal" style="--i:4">
+        <div class="panel-head"><div><h2>Imágenes de referencia</h2><p>Fotos extra: ángulos, detalles o empaque (hasta 8)</p></div></div>
+        {% if producto and producto.imagenes.all %}
+        <div class="refs" aria-label="Imágenes de referencia actuales">
+          {% for im in producto.imagenes.all %}
+          <label class="ref"><img src="{{ im.imagen.url }}" alt="Imagen de referencia {{ forloop.counter }}" loading="lazy"><input type="checkbox" name="quitar_ref" value="{{ im.pk }}"><span class="x"><svg class="ico"><use href="#i-trash"/></svg>Quitar</span></label>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="refs" id="refNuevas" aria-label="Imágenes nuevas por subir"></div>
+        <label class="btn keep-label ref-add" style="cursor:pointer"><svg class="ico"><use href="#i-upload"/></svg><span>Agregar imágenes</span><input type="file" id="refInput" name="referencias" accept="image/*" multiple hidden></label>
+        <span id="refError" role="alert" style="color:var(--danger);font-size:.82rem;display:block;margin-top:.5rem" hidden></span>
+      </section>
+
+      <section class="panel reveal" style="--i:5">
         <div class="panel-head"><div><h2>Inventario</h2><p>Existencias y alertas</p></div></div>
         <div class="fields">
           <div class="fields two">
@@ -130,7 +157,7 @@
         </div>
       </section>
 
-      <div class="form-actions reveal" style="--i:5">
+      <div class="form-actions reveal" style="--i:6">
         <a class="btn keep-label" href="{% url 'producto_lista' %}">Cancelar</a>
         <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>{% if producto %}Guardar cambios{% else %}Crear producto{% endif %}</span></button>
       </div>
@@ -186,6 +213,37 @@
 
     var quitar = document.getElementById('id_quitar_imagen');
     if (quitar) quitar.addEventListener('change', function () { dz.classList.toggle('removed', quitar.checked); });
+
+    /* Imágenes de referencia: se pueden ir sumando de a una o varias */
+    var refInput = document.getElementById('refInput'), refBox = document.getElementById('refNuevas');
+    var refErr = document.getElementById('refError'), MAXREF = 8;
+    var existentes = document.querySelectorAll('input[name="quitar_ref"]').length;
+    var dt = new DataTransfer();
+
+    function pintarRefs() {
+      refBox.innerHTML = '';
+      Array.prototype.forEach.call(dt.files, function (f, i) {
+        var d = document.createElement('div'); d.className = 'ref nueva';
+        var im = document.createElement('img'); im.src = URL.createObjectURL(f); im.alt = f.name;
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'x'; b.textContent = 'Quitar';
+        b.addEventListener('click', function () {
+          var nd = new DataTransfer();
+          Array.prototype.forEach.call(dt.files, function (g, j) { if (j !== i) nd.items.add(g); });
+          dt = nd; refInput.files = dt.files; pintarRefs();
+        });
+        d.appendChild(im); d.appendChild(b); refBox.appendChild(d);
+      });
+    }
+    refInput.addEventListener('change', function () {
+      refErr.hidden = true;
+      Array.prototype.forEach.call(refInput.files, function (f) {
+        if (f.size > MAX) { refErr.textContent = '“' + f.name + '” supera los 5 MB.'; refErr.hidden = false; return; }
+        if (existentes + dt.files.length >= MAXREF) { refErr.textContent = 'Máximo ' + MAXREF + ' imágenes de referencia.'; refErr.hidden = false; return; }
+        dt.items.add(f);
+      });
+      refInput.files = dt.files;
+      pintarRefs();
+    });
   })();
 </script>
 {% endblock %}

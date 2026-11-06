@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Reparaciones{% endblock %}
+{% block page_title %}Reparaciones{% endblock %}
+{% block page_sub %}<span class="date">{% if es_admin %}Todas las reparaciones del taller{% else %}Los equipos de tus clientes{% endif %}</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .search { position: relative; }
+  .search .ico { position: absolute; left: 0.95rem; top: 50%; transform: translateY(-50%); color: var(--muted); width: 20px; height: 20px; pointer-events: none; }
+  .search .input { padding: 0.9rem 1rem 0.9rem 2.9rem; font-size: 1.02rem; border-radius: 14px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0 1.2rem; }
+  .pill { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.5rem 0.9rem; border-radius: 999px; font-size: 0.88rem; font-weight: 600; color: var(--muted); border: 1px solid var(--border); transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+  .pill:hover { color: var(--text); background: var(--hover); }
+  .pill[aria-current="true"] { color: var(--primary); border-color: rgba(59, 130, 246, 0.45); background: rgba(59, 130, 246, 0.12); }
+  .pill small { font-weight: 600; opacity: 0.75; }
+  .trabajo { color: var(--muted); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pager { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.88rem; color: var(--muted); }
+  .pager .btns { display: flex; gap: 0.5rem; }
+  .btn[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
+  .empty .btn { margin-top: 0.6rem; }
+</style>
+{% endblock %}
+
+{% block actions %}
+<a class="btn primary" href="{% url 'reparacion_crear' %}" aria-label="Nueva reparación">
+  <svg class="ico"><use href="#i-plus"/></svg><span>Nueva reparación</span>
+</a>
+{% endblock %}
+
+{% block content %}
+<section class="panel reveal" style="--i:1">
+  <form method="get" role="search" class="search">
+    <svg class="ico"><use href="#i-search"/></svg>
+    <input class="input" type="search" name="q" id="q" value="{{ q }}" placeholder="Busca por cliente, equipo, teléfono o código (R-0012)" aria-label="Buscar reparaciones" autocomplete="off">
+  </form>
+  <div class="pills" id="filtros" aria-label="Filtrar por estado">{% include "reparaciones/_filtros.html" %}</div>
+  <div id="tabla">{% include "reparaciones/_tabla.html" %}</div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  TL.vivo({
+    input: document.getElementById('q'),
+    regiones: { filtros: document.getElementById('filtros'), tabla: document.getElementById('tabla') }
+  });
+</script>
+{% endblock %}

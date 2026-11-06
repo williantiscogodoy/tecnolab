@@ -1,0 +1,1 @@
+{% if r.estado == "EN_PROCESO" %}<span class="badge tec">En proceso</span>{% elif r.estado == "LISTO" %}<span class="badge in">Listo para entregar</span>{% elif r.estado == "ENTREGADO" %}<span class="badge off">Entregado</span>{% else %}<span class="badge out">No reparable</span>{% endif %}

@@ -77,11 +77,11 @@
         <tr class="{% if not p.activo %}is-off{% endif %}">
           <td>
             <div class="cell-prod">
-              {% if p.imagen %}<img class="thumb" src="{{ p.imagen.url }}" alt="" loading="lazy">
+              {% if p.portada_url %}<img class="thumb" src="{{ p.portada_url }}" alt="" loading="lazy">
               {% else %}<div class="thumb ph" aria-hidden="true"><svg class="ico"><use href="#i-image"/></svg></div>{% endif %}
               <div>
                 <a class="name" href="{% url 'producto_editar' p.pk %}">{{ p.nombre }}</a>
-                <span class="sub">{{ p.sku }}{% if not p.activo %} · <span class="badge off" style="padding:0.05rem 0.45rem">Inactivo</span>{% endif %}</span>
+                <span class="sub">{% if p.sku %}{{ p.sku }}{% else %}Sin SKU{% endif %}{% if not p.activo %} · <span class="badge off" style="padding:0.05rem 0.45rem">Inactivo</span>{% endif %}</span>
               </div>
             </div>
           </td>

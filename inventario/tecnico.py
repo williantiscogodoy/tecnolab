@@ -1,22 +1,17 @@
-from urllib.parse import urlencode
-
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, F, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .models import Categoria, Movimiento, Producto
+from .models import Categoria, Movimiento, Producto, Reparacion
 from .roles import ADMIN, admin_o_tecnico, rol_de
-
-
-def _url(**params):
-    """Arma un '?a=1&b=2' ignorando los valores vacíos."""
-    limpios = {k: v for k, v in params.items() if v not in ("", None, False)}
-    return "?" + urlencode(limpios) if limpios else "?"
+from .utils import url_params
 
 
 @admin_o_tecnico
@@ -38,7 +33,7 @@ def tecnico_panel(request):
     )
 
     # Búsqueda: cada palabra debe aparecer en el nombre, SKU, descripción o categoría
-    productos = Producto.objects.filter(activo=True).select_related("categoria")
+    productos = Producto.objects.filter(activo=True).select_related("categoria").prefetch_related("imagenes")
     for palabra in q.split():
         productos = productos.filter(
             Q(nombre__icontains=palabra)
@@ -66,40 +61,82 @@ def tecnico_panel(request):
     ).order_by("nombre")
     chips = [{
         "nombre": "Todo lo técnico",
-        "url": _url(q=q, bajo=bajo_val),
+        "url": url_params(q=q, bajo=bajo_val),
         "activo": cat_id is None,
     }] + [{
         "nombre": c.nombre,
         "n": c.n,
-        "url": _url(q=q, categoria=c.pk, bajo=bajo_val),
+        "url": url_params(q=q, categoria=c.pk, bajo=bajo_val),
         "activo": cat_id == c.pk,
     } for c in categorias]
 
     params = request.GET.copy()
     params.pop("page", None)
+    params.pop("partial", None)
 
-    retiros = (
-        Movimiento.objects.filter(usuario=request.user, tipo=Movimiento.SALIDA)
-        .select_related("producto")
-        .order_by("-fecha", "-pk")[:6]
-    )
-
-    return render(request, "tecnico/panel.html", {
+    ctx = {
         "page_obj": page_obj,
         "pag_anterior": max(page_obj.number - 1, 1),
         "pag_siguiente": min(page_obj.number + 1, page_obj.paginator.num_pages),
         "qs": params.urlencode(),
         "q": q,
         "chips": chips,
-        "resumen": resumen,
         "solo_bajo": solo_bajo,
         "ver_todo": ver_todo,
         "hay_categorias": bool(chips[1:]),
-        "url_bajo": _url(q=q, categoria=cat_id, bajo=None if solo_bajo else "1", todo=todo_val),
-        "url_todo": _url(q=q, categoria=cat_id, bajo=bajo_val, todo=None if ver_todo else "1"),
+        "url_bajo": url_params(q=q, categoria=cat_id, bajo=None if solo_bajo else "1", todo=todo_val),
+        "url_todo": url_params(q=q, categoria=cat_id, bajo=bajo_val, todo=None if ver_todo else "1"),
         "url_limpiar": reverse("tecnico_panel"),
-        "retiros": retiros,
+    }
+
+    # Búsqueda en vivo: el navegador pide solo los trozos que cambian
+    if request.GET.get("partial"):
+        return JsonResponse({
+            "filtros": render_to_string("tecnico/_filtros.html", ctx, request),
+            "resultados": render_to_string("tecnico/_resultados.html", ctx, request),
+        })
+
+    # Lo que solo se necesita en la carga completa de la página
+    mias = Reparacion.objects.filter(tecnico=request.user)
+    abiertas = mias.filter(estado__in=[Reparacion.EN_PROCESO, Reparacion.LISTO])
+    ctx.update({
+        "resumen": resumen,
+        "n_abiertas": abiertas.count(),
+        "reparaciones_abiertas": abiertas.select_related("tecnico").prefetch_related("piezas__producto")[:5],
+        "retiros": (
+            Movimiento.objects.filter(usuario=request.user, tipo=Movimiento.SALIDA)
+            .select_related("producto")
+            .order_by("-fecha", "-pk")[:6]
+        ),
     })
+    return render(request, "tecnico/panel.html", ctx)
+
+
+@admin_o_tecnico
+def tecnico_producto(request, pk):
+    """Detalle de un producto para el cuadro emergente (JSON)."""
+    p = get_object_or_404(
+        Producto.objects.select_related("categoria").prefetch_related("imagenes"), pk=pk, activo=True
+    )
+    es_admin = rol_de(request.user) == ADMIN
+    datos = {
+        "id": p.pk,
+        "nombre": p.nombre,
+        "sku": p.sku or "",
+        "categoria": p.categoria.nombre,
+        "es_tecnica": p.categoria.es_tecnica,
+        "descripcion": p.descripcion,
+        "stock": p.stock,
+        "stock_minimo": p.stock_minimo,
+        "imagenes": p.galeria,
+        "puede_retirar": (es_admin or p.categoria.es_tecnica) and p.stock > 0,
+        "retirar_url": reverse("tecnico_retirar", args=[p.pk]),
+    }
+    if es_admin:  # el técnico no ve precios
+        datos["precio_compra"] = f"{p.precio_compra:.2f}"
+        datos["precio_venta"] = f"{p.precio_venta:.2f}"
+        datos["editar_url"] = reverse("producto_editar", args=[p.pk])
+    return JsonResponse(datos)
 
 
 @admin_o_tecnico

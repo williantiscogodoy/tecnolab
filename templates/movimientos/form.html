@@ -59,7 +59,7 @@
           <select class="input" name="producto" id="id_producto" required>
             <option value="">Selecciona un producto</option>
             {% for p in productos %}
-            <option value="{{ p.pk }}" data-stock="{{ p.stock }}" data-min="{{ p.stock_minimo }}" data-sku="{{ p.sku }}" {% if form.producto.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.nombre }} ({{ p.sku }})</option>
+            <option value="{{ p.pk }}" data-stock="{{ p.stock }}" data-min="{{ p.stock_minimo }}" data-sku="{{ p.sku|default:'' }}" data-nombre="{{ p.nombre }}" {% if form.producto.value|stringformat:"s" == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.nombre }}{% if p.sku %} ({{ p.sku }}){% endif %}</option>
             {% endfor %}
           </select>
           {% for e in form.producto.errors %}<span class="err" role="alert">{{ e }}</span>{% endfor %}
@@ -124,8 +124,8 @@
       var delta = tipo() === 'ENTRADA' ? n : -n;
       var res = stock + delta;
 
-      document.getElementById('resNombre').textContent = opt.textContent.replace(/\s*\(.*\)$/, '');
-      document.getElementById('resSku').textContent = 'SKU ' + opt.dataset.sku + ' · mínimo ' + min;
+      document.getElementById('resNombre').textContent = opt.dataset.nombre;
+      document.getElementById('resSku').textContent = (opt.dataset.sku ? 'SKU ' + opt.dataset.sku + ' · ' : '') + 'mínimo ' + min;
       elActual.textContent = stock;
       elCambio.textContent = (delta > 0 ? '+' : delta < 0 ? '−' : '') + Math.abs(delta);
       elFinal.textContent = res < 0 ? 0 : res;

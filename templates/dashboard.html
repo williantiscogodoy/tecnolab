@@ -111,7 +111,7 @@
         <tbody>
           {% for p in bajo_stock %}
           <tr>
-            <td><a class="name" href="{% url 'producto_editar' p.pk %}">{{ p.nombre }}</a><span class="sub">{{ p.sku }}</span></td>
+            <td><a class="name" href="{% url 'producto_editar' p.pk %}">{{ p.nombre }}</a>{% if p.sku %}<span class="sub">{{ p.sku }}</span>{% endif %}</td>
             <td class="num">{{ p.stock }}</td>
             <td class="num hide-sm">{{ p.stock_minimo }}</td>
             <td>{% if p.stock == 0 %}<span class="badge out">Agotado</span>{% else %}<span class="badge low">Stock bajo</span>{% endif %}</td>

@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import tecnico, views
+from . import reparaciones, tecnico, views
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -30,6 +30,14 @@ urlpatterns = [
     # Panel técnico
     path("tecnico/", tecnico.tecnico_panel, name="tecnico_panel"),
     path("tecnico/retirar/<int:pk>/", tecnico.tecnico_retirar, name="tecnico_retirar"),
+    path("tecnico/producto/<int:pk>/", tecnico.tecnico_producto, name="tecnico_producto"),
+
+    # Reparaciones
+    path("reparaciones/", reparaciones.reparacion_lista, name="reparacion_lista"),
+    path("reparaciones/nueva/", reparaciones.reparacion_crear, name="reparacion_crear"),
+    path("reparaciones/<int:pk>/", reparaciones.reparacion_detalle, name="reparacion_detalle"),
+    path("reparaciones/<int:pk>/actualizar/", reparaciones.reparacion_actualizar, name="reparacion_actualizar"),
+    path("reparaciones/<int:pk>/pieza/", reparaciones.reparacion_pieza, name="reparacion_pieza"),
 
     # Movimientos
     path("movimientos/", views.movimiento_lista, name="movimiento_lista"),

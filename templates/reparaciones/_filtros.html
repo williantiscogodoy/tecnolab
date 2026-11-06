@@ -1,0 +1,3 @@
+{% for c in chips %}
+  <a class="pill" data-vivo href="{{ c.url }}" {% if c.activo %}aria-current="true"{% endif %}>{{ c.nombre }} <small>{{ c.n }}</small></a>
+{% endfor %}

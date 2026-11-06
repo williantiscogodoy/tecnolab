@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva reparación{% endblock %}
+{% block page_title %}Nueva reparación{% endblock %}
+{% block page_sub %}<span class="date">Registra el equipo que dejó el cliente</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .back { margin-bottom: -0.4rem; }
+  .wrap { width: min(860px, 100%); display: grid; gap: 1.2rem; }
+  .fields { display: grid; gap: 1rem; }
+  .fields.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .alert-box { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.85rem 1rem; border-radius: var(--radius-sm); background: var(--danger-bg); color: var(--danger); border: 1px solid rgba(244, 63, 94, 0.35); font-size: 0.9rem; }
+  .alert-box .ico { width: 18px; height: 18px; margin-top: 1px; }
+  :root[data-theme="light"] .alert-box { color: #be123c; }
+  .note { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.83rem; color: var(--muted); line-height: 1.45; margin-bottom: 0.9rem; }
+  .note .ico { width: 17px; height: 17px; margin-top: 1px; color: var(--primary); }
+  .form-actions { display: flex; justify-content: flex-end; gap: 0.7rem; }
+  @media (max-width: 560px) { .fields.two { grid-template-columns: minmax(0, 1fr); } .form-actions .btn { flex: 1; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<a class="link back reveal" href="{% url 'reparacion_lista' %}"><svg class="ico"><use href="#i-arrow-left"/></svg>Volver a reparaciones</a>
+
+<form method="post" id="formPiezas" class="wrap" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="alert-box" role="alert"><svg class="ico"><use href="#i-alert"/></svg><span>{{ form.non_field_errors|join:" " }}</span></div>
+  {% endif %}
+
+  <section class="panel reveal" style="--i:1">
+    <div class="panel-head"><div><h2>Cliente y equipo</h2><p>Para saber de quién es cada trabajo</p></div></div>
+    <div class="fields">
+      {% include "productos/_campo.html" with field=form.cliente %}
+      <div class="fields two">
+        {% include "productos/_campo.html" with field=form.equipo %}
+        {% include "productos/_campo.html" with field=form.telefono_cliente %}
+      </div>
+    </div>
+  </section>
+
+  <section class="panel reveal" style="--i:2">
+    <div class="panel-head"><div><h2>Arreglo</h2><p>Qué se va a hacer</p></div></div>
+    <div class="fields">
+      {% include "productos/_campo.html" with field=form.trabajo %}
+      {% include "productos/_campo.html" with field=form.notas %}
+    </div>
+  </section>
+
+  <section class="panel reveal" style="--i:3">
+    <div class="panel-head"><div><h2>Piezas del inventario</h2><p>Opcional</p></div></div>
+    <p class="note"><svg class="ico"><use href="#i-info"/></svg><span>Las piezas que elijas se descuentan del inventario automáticamente al guardar, y quedan anotadas en esta reparación y en tus retiros.</span></p>
+    {% include "reparaciones/_piezas.html" %}
+  </section>
+
+  <div class="form-actions reveal" style="--i:4">
+    <a class="btn keep-label" href="{% url 'reparacion_lista' %}">Cancelar</a>
+    <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>Registrar reparación</span></button>
+  </div>
+</form>
+{% endblock %}

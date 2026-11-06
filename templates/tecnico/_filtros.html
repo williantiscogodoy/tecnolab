@@ -1,0 +1,6 @@
+{% for c in chips %}
+  <a class="pill" data-vivo href="{{ c.url }}" {% if c.activo %}aria-current="true"{% endif %}>{{ c.nombre }}{% if c.n is not None %} <small>{{ c.n }}</small>{% endif %}</a>
+{% endfor %}
+<span class="sep-v" aria-hidden="true"></span>
+<a class="pill warn" data-vivo href="{{ url_bajo }}" {% if solo_bajo %}aria-current="true"{% endif %}><svg class="ico" style="width:16px;height:16px"><use href="#i-alert"/></svg>Stock bajo</a>
+{% if not q %}<a class="pill" data-vivo href="{{ url_todo }}" {% if ver_todo %}aria-current="true"{% endif %}>Incluir otros productos</a>{% endif %}

@@ -33,7 +33,7 @@
 
   <div class="item">
     {% if producto.imagen %}<img src="{{ producto.imagen.url }}" alt="">{% else %}<div class="ph"><svg class="ico"><use href="#i-image"/></svg></div>{% endif %}
-    <div><span class="name">{{ producto.nombre }}</span><span class="sub">{{ producto.sku }} · {{ producto.stock }} en stock</span></div>
+    <div><span class="name">{{ producto.nombre }}</span><span class="sub">{% if producto.sku %}{{ producto.sku }} · {% endif %}{{ producto.stock }} en stock</span></div>
   </div>
 
   <form method="post" class="btns">

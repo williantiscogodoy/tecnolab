@@ -88,7 +88,7 @@
         {% for m in page_obj %}
         <tr>
           <td style="white-space:nowrap">{{ m.fecha|date:"d/m/Y" }}<span class="sub">{{ m.fecha|date:"H:i" }}</span></td>
-          <td><a class="name" href="{% url 'producto_editar' m.producto.pk %}">{{ m.producto.nombre }}</a><span class="sub">{{ m.producto.sku }}</span></td>
+          <td><a class="name" href="{% url 'producto_editar' m.producto.pk %}">{{ m.producto.nombre }}</a>{% if m.producto.sku %}<span class="sub">{{ m.producto.sku }}</span>{% endif %}</td>
           <td>{% if m.tipo == "ENTRADA" %}<span class="badge in">Entrada</span>{% else %}<span class="badge out">Salida</span>{% endif %}</td>
           <td class="num"><span class="qty {% if m.tipo == 'ENTRADA' %}in{% else %}out{% endif %}">{% if m.tipo == "ENTRADA" %}+{% else %}−{% endif %}{{ m.cantidad }}</span></td>
           <td class="hide-md">{{ m.usuario.get_username|default:"—" }}</td>

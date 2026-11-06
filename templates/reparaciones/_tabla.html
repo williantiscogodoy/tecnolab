@@ -1,0 +1,52 @@
+{% if page_obj %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th class="hide-md">Arreglo</th>
+        <th class="num hide-md">Piezas</th>
+        <th>Estado</th>
+        <th class="hide-sm">Fecha</th>
+        {% if es_admin %}<th class="hide-md">Técnico</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in page_obj %}
+      <tr>
+        <td><a class="name" href="{% url 'reparacion_detalle' r.pk %}">{{ r.cliente }}</a><span class="sub">{{ r.codigo }} · {{ r.equipo }}</span></td>
+        <td class="hide-md trabajo" title="{{ r.trabajo }}">{{ r.trabajo|default:"—" }}</td>
+        <td class="num hide-md">{{ r.piezas.all|length }}</td>
+        <td>{% include "reparaciones/_estado.html" %}</td>
+        <td class="hide-sm" style="white-space:nowrap">{{ r.creado|date:"d/m/Y" }}<span class="sub">{{ r.creado|date:"H:i" }}</span></td>
+        {% if es_admin %}<td class="hide-md">{{ r.tecnico.get_username|default:"—" }}</td>{% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="pager">
+  <span>Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="btns">
+    <a class="btn keep-label" data-vivo href="?{% if qs %}{{ qs }}&{% endif %}page={{ pag_anterior }}" {% if not page_obj.has_previous %}aria-disabled="true" tabindex="-1"{% endif %}>Anterior</a>
+    <a class="btn keep-label" data-vivo href="?{% if qs %}{{ qs }}&{% endif %}page={{ pag_siguiente }}" {% if not page_obj.has_next %}aria-disabled="true" tabindex="-1"{% endif %}>Siguiente</a>
+  </div>
+  {% endif %}
+</div>
+
+{% else %}
+<div class="empty static">
+  <svg class="ico"><use href="#i-phone"/></svg>
+  {% if q or estado %}
+    <strong>No encontramos reparaciones con esa búsqueda</strong>
+    Prueba con el nombre del cliente, el equipo o el código (R-0012).
+    <a class="btn keep-label" data-vivo data-limpiar href="{% url 'reparacion_lista' %}">Limpiar búsqueda</a>
+  {% else %}
+    <strong>Aún no hay reparaciones</strong>
+    Registra el equipo de tu primer cliente.
+    <a class="btn primary keep-label" href="{% url 'reparacion_crear' %}"><svg class="ico"><use href="#i-plus"/></svg><span>Nueva reparación</span></a>
+  {% endif %}
+</div>
+{% endif %}
