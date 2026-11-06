@@ -104,7 +104,7 @@ def producto_lista(request):
     elif estado == "bajo":
         productos = productos.filter(activo=True, stock__lte=F("stock_minimo"))
 
-    page_obj = Paginator(productos.order_by("nombre"), 10).get_page(request.GET.get("page"))
+    page_obj = Paginator(productos.order_by("nombre"), 12).get_page(request.GET.get("page"))
 
     # Conserva los filtros al cambiar de página
     params = request.GET.copy()

@@ -124,7 +124,7 @@ class ProductoForm(forms.ModelForm):
 class CategoriaForm(forms.ModelForm):
     class Meta:
         model = Categoria
-        fields = ["nombre", "es_tecnica"]
+        fields = ["nombre", "es_tecnica", "usa_compatibilidad"]
 
     def clean_nombre(self):
         nombre = " ".join(self.cleaned_data["nombre"].split())

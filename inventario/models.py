@@ -9,6 +9,11 @@ class Categoria(models.Model):
         default=False,
         help_text="Sus productos aparecen primero en el panel del técnico.",
     )
+    usa_compatibilidad = models.BooleanField(
+        "Usa compatibilidad",
+        default=False,
+        help_text="Permite vincular productos compatibles o similares (ej.: una pantalla que sirve para varios modelos).",
+    )
 
     class Meta:
         verbose_name_plural = "categorías"
@@ -30,6 +35,10 @@ class Producto(models.Model):
     stock_minimo = models.PositiveIntegerField(default=5)
     activo = models.BooleanField(default=True)
     creado = models.DateTimeField(auto_now_add=True)
+    # Compatibilidad mutua: si A es compatible con B, B también lo es con A.
+    compatibles = models.ManyToManyField(
+        "self", blank=True, symmetrical=True, verbose_name="productos compatibles",
+    )
 
     def __str__(self):
         return f"{self.nombre} ({self.sku})" if self.sku else self.nombre

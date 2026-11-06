@@ -15,6 +15,8 @@
   .act:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
   .act .ico { width: 17px; height: 17px; }
   .empty .btn { margin-top: 0.6rem; }
+  .badge.comp { background: rgba(139, 92, 246, 0.16); color: #a78bfa; }
+  :root[data-theme="light"] .badge.comp { color: #6d28d9; }
 
   dialog { margin: auto; width: min(440px, calc(100vw - 2rem)); padding: 0; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7); }
   dialog[open] { animation: pop 0.4s var(--ease); }
@@ -56,12 +58,12 @@
       <tbody>
         {% for c in categorias %}
         <tr>
-          <td><div class="cell-cat"><div class="cat-ico" aria-hidden="true"><svg class="ico"><use href="#i-tag"/></svg></div><a class="name" href="{% url 'producto_lista' %}?categoria={{ c.pk }}">{{ c.nombre }}</a>{% if c.es_tecnica %}<span class="badge tec">Técnico</span>{% endif %}</div></td>
+          <td><div class="cell-cat"><div class="cat-ico" aria-hidden="true"><svg class="ico"><use href="#i-tag"/></svg></div><a class="name" href="{% url 'producto_lista' %}?categoria={{ c.pk }}">{{ c.nombre }}</a>{% if c.es_tecnica %}<span class="badge tec">Técnico</span>{% endif %}{% if c.usa_compatibilidad %}<span class="badge comp">Compatibilidad</span>{% endif %}</div></td>
           <td class="num">{{ c.num_productos }}</td>
           <td class="num hide-sm">{{ c.total_stock|default:0 }}</td>
           <td>
             <div class="row-actions">
-              <button class="act js-editar" type="button" data-url="{% url 'categoria_editar' c.pk %}" data-nombre="{{ c.nombre }}" data-tecnica="{% if c.es_tecnica %}1{% endif %}" aria-label="Editar {{ c.nombre }}" title="Editar"><svg class="ico"><use href="#i-edit"/></svg></button>
+              <button class="act js-editar" type="button" data-url="{% url 'categoria_editar' c.pk %}" data-nombre="{{ c.nombre }}" data-tecnica="{% if c.es_tecnica %}1{% endif %}" data-compat="{% if c.usa_compatibilidad %}1{% endif %}" aria-label="Editar {{ c.nombre }}" title="Editar"><svg class="ico"><use href="#i-edit"/></svg></button>
               <button class="act danger js-eliminar" type="button" data-url="{% url 'categoria_eliminar' c.pk %}" data-nombre="{{ c.nombre }}" {% if c.num_productos %}disabled title="Tiene productos asignados"{% else %}title="Eliminar"{% endif %} aria-label="Eliminar {{ c.nombre }}"><svg class="ico"><use href="#i-trash"/></svg></button>
             </div>
           </td>
@@ -95,6 +97,10 @@
       <span><strong>Categoría técnica</strong><small>Sus productos salen primero al técnico: pantallas, puentes de carga, repuestos…</small></span>
       <span class="sw"><input type="checkbox" name="es_tecnica" id="catTecnica"><i class="track"></i></span>
     </label>
+    <label class="switch" style="margin-top:1rem">
+      <span><strong>Usa compatibilidad</strong><small>En el detalle de sus productos se pueden vincular productos compatibles o similares: una pantalla que sirve para varios modelos…</small></span>
+      <span class="sw"><input type="checkbox" name="usa_compatibilidad" id="catCompat"><i class="track"></i></span>
+    </label>
     <div class="btns">
       <button class="btn keep-label" type="button" data-cerrar>Cancelar</button>
       <button class="btn primary keep-label" type="submit"><span>Guardar</span></button>
@@ -122,7 +128,7 @@
   (function () {
     var dlgCat = document.getElementById('dlgCat'), formCat = document.getElementById('formCat');
     var titulo = document.getElementById('dlgCatTitulo'), nombre = document.getElementById('catNombre');
-    var tecnica = document.getElementById('catTecnica');
+    var tecnica = document.getElementById('catTecnica'), compat = document.getElementById('catCompat');
     var dlgDel = document.getElementById('dlgDel'), formDel = document.getElementById('formDel');
 
     function abrirCrear() {
@@ -130,6 +136,7 @@
       titulo.textContent = 'Nueva categoría';
       nombre.value = '';
       tecnica.checked = false;
+      compat.checked = false;
       dlgCat.showModal();
       nombre.focus();
     }
@@ -143,6 +150,7 @@
         titulo.textContent = 'Editar categoría';
         nombre.value = b.dataset.nombre;
         tecnica.checked = b.dataset.tecnica === '1';
+        compat.checked = b.dataset.compat === '1';
         dlgCat.showModal();
         nombre.focus();
         nombre.select();

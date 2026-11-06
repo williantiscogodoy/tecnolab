@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, F, Q
+from django.db.models import Case, Count, F, IntegerField, Q, Value, When
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -112,13 +112,41 @@ def tecnico_panel(request):
     return render(request, "tecnico/panel.html", ctx)
 
 
+def _item_producto(p):
+    """Datos mínimos de un producto para listas dentro del cuadro de detalle."""
+    return {
+        "id": p.pk,
+        "nombre": p.nombre,
+        "sku": p.sku or "",
+        "categoria": p.categoria.nombre,
+        "stock": p.stock,
+        "stock_minimo": p.stock_minimo,
+        "imagen": p.portada_url or "",
+        "detalle_url": reverse("tecnico_producto", args=[p.pk]),
+    }
+
+
+def _lista_compatibles(p):
+    """Productos activos compatibles con p (la relación es mutua)."""
+    qs = (
+        p.compatibles.filter(activo=True)
+        .select_related("categoria").prefetch_related("imagenes")
+        .order_by("categoria__nombre", "nombre")
+    )
+    return [
+        dict(_item_producto(c), quitar_url=reverse("tecnico_compat_quitar", args=[p.pk, c.pk]))
+        for c in qs
+    ]
+
+
 @admin_o_tecnico
 def tecnico_producto(request, pk):
     """Detalle de un producto para el cuadro emergente (JSON)."""
-    p = get_object_or_404(
-        Producto.objects.select_related("categoria").prefetch_related("imagenes"), pk=pk, activo=True
-    )
     es_admin = rol_de(request.user) == ADMIN
+    base = Producto.objects.select_related("categoria").prefetch_related("imagenes")
+    # El administrador también puede abrir productos inactivos
+    p = get_object_or_404(base if es_admin else base.filter(activo=True), pk=pk)
+    usa_compat = p.categoria.usa_compatibilidad
     datos = {
         "id": p.pk,
         "nombre": p.nombre,
@@ -129,14 +157,95 @@ def tecnico_producto(request, pk):
         "stock": p.stock,
         "stock_minimo": p.stock_minimo,
         "imagenes": p.galeria,
-        "puede_retirar": (es_admin or p.categoria.es_tecnica) and p.stock > 0,
+        "puede_retirar": (es_admin or p.categoria.es_tecnica) and p.stock > 0 and p.activo,
         "retirar_url": reverse("tecnico_retirar", args=[p.pk]),
+        "usa_compatibilidad": usa_compat,
+        "puede_compat": usa_compat and p.activo,
+        "compatibles": _lista_compatibles(p),
+        "compat_buscar_url": reverse("tecnico_compat_buscar", args=[p.pk]),
+        "compat_agregar_url": reverse("tecnico_compat_agregar", args=[p.pk]),
     }
     if es_admin:  # el técnico no ve precios
         datos["precio_compra"] = f"{p.precio_compra:.2f}"
         datos["precio_venta"] = f"{p.precio_venta:.2f}"
         datos["editar_url"] = reverse("producto_editar", args=[p.pk])
     return JsonResponse(datos)
+
+
+def _error_json(mensaje, estado=400):
+    return JsonResponse({"error": mensaje}, status=estado)
+
+
+@admin_o_tecnico
+def tecnico_compat_buscar(request, pk):
+    """Productos que se pueden vincular como compatibles (primero los de la misma categoría)."""
+    p = get_object_or_404(Producto.objects.select_related("categoria"), pk=pk, activo=True)
+    if not p.categoria.usa_compatibilidad:
+        return _error_json("Esta categoría no usa compatibilidad.")
+
+    q = request.GET.get("q", "").strip()
+    candidatos = (
+        Producto.objects.filter(activo=True)
+        .exclude(pk=p.pk)
+        .exclude(pk__in=p.compatibles.values("pk"))
+        .select_related("categoria").prefetch_related("imagenes")
+    )
+    for palabra in q.split():
+        candidatos = candidatos.filter(
+            Q(nombre__icontains=palabra)
+            | Q(sku__icontains=palabra)
+            | Q(categoria__nombre__icontains=palabra)
+        )
+    candidatos = candidatos.annotate(
+        _orden=Case(
+            When(categoria_id=p.categoria_id, then=Value(0)),
+            default=Value(1), output_field=IntegerField(),
+        )
+    ).order_by("_orden", "nombre")[:12]
+
+    return JsonResponse({
+        "resultados": [
+            dict(_item_producto(c), misma_categoria=c.categoria_id == p.categoria_id)
+            for c in candidatos
+        ]
+    })
+
+
+@admin_o_tecnico
+@require_POST
+def tecnico_compat_agregar(request, pk):
+    """Vincula otro producto como compatible (queda en los dos sentidos)."""
+    p = get_object_or_404(Producto.objects.select_related("categoria"), pk=pk, activo=True)
+    if not p.categoria.usa_compatibilidad:
+        return _error_json("Esta categoría no usa compatibilidad.")
+
+    otro_id = request.POST.get("otro", "")
+    otro = (
+        Producto.objects.filter(pk=int(otro_id), activo=True).first() if otro_id.isdigit() else None
+    )
+    if otro is None:
+        return _error_json("No encontramos ese producto.", 404)
+    if otro.pk == p.pk:
+        return _error_json("Un producto no puede ser compatible consigo mismo.")
+
+    p.compatibles.add(otro)  # si ya estaba vinculado no se duplica
+    return JsonResponse({
+        "compatibles": _lista_compatibles(p),
+        "mensaje": f"“{otro.nombre}” ahora es compatible.",
+    })
+
+
+@admin_o_tecnico
+@require_POST
+def tecnico_compat_quitar(request, pk, otro):
+    """Quita el vínculo de compatibilidad entre dos productos."""
+    p = get_object_or_404(Producto, pk=pk)
+    elegido = get_object_or_404(Producto, pk=otro)
+    p.compatibles.remove(elegido)
+    return JsonResponse({
+        "compatibles": _lista_compatibles(p),
+        "mensaje": f"Se quitó “{elegido.nombre}” de los compatibles.",
+    })
 
 
 @admin_o_tecnico

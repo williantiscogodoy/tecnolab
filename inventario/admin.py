@@ -7,8 +7,8 @@ from .models import (
 
 @admin.register(Categoria)
 class CategoriaAdmin(admin.ModelAdmin):
-    list_display = ["nombre", "es_tecnica"]
-    list_filter = ["es_tecnica"]
+    list_display = ["nombre", "es_tecnica", "usa_compatibilidad"]
+    list_filter = ["es_tecnica", "usa_compatibilidad"]
     search_fields = ["nombre"]
 
 
@@ -23,6 +23,7 @@ class ProductoAdmin(admin.ModelAdmin):
     list_filter = ["categoria", "activo"]
     search_fields = ["nombre", "sku"]
     inlines = [ProductoImagenInline]
+    filter_horizontal = ["compatibles"]
 
 
 @admin.register(Movimiento)

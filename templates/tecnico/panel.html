@@ -5,6 +5,7 @@
 {% block page_sub %}<span class="date">Pantallas, puentes de carga y repuestos</span>{% endblock %}
 
 {% block extra_head %}
+{% include "producto/_estilos.html" %}
 <style>
   /* ---------- Búsqueda ---------- */
   .hero { padding: 1.4rem; }
@@ -41,45 +42,6 @@
   /* ---------- Encabezado de resultados y selector de vista ---------- */
   .res-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
   .res-head h2 { font-size: 1.02rem; font-weight: 700; }
-  .view-toggle { display: inline-flex; padding: 0.22rem; gap: 0.2rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
-  .view-toggle button { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.42rem 0.75rem; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 0.85rem; font-weight: 600; transition: background-color 0.2s, color 0.2s; }
-  .view-toggle button:hover { color: var(--text); }
-  .view-toggle button[aria-pressed="true"] { background: var(--surface); color: var(--primary); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
-  .view-toggle .ico { width: 16px; height: 16px; }
-
-  /* ---------- Tarjetas (cajas) ---------- */
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
-  .group-title { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.6rem; margin-top: 0.4rem; font-size: 0.95rem; font-weight: 700; }
-  .group-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-  .group-title:first-child { margin-top: 0; }
-  .group-title .ico { width: 18px; height: 18px; color: var(--primary); }
-
-  .card { display: flex; flex-direction: column; gap: 0.9rem; padding: 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 16px; cursor: pointer; transition: border-color 0.25s, transform 0.3s var(--ease); }
-  .card:hover { border-color: rgba(59, 130, 246, 0.4); transform: translateY(-2px); }
-  .card.tec { border-left: 3px solid var(--primary); }
-  .card-top { display: flex; gap: 0.8rem; align-items: flex-start; min-width: 0; }
-  .thumb { width: 60px; height: 60px; flex: none; border-radius: 13px; object-fit: cover; background: var(--surface); border: 1px solid var(--border); }
-  .thumb.ph { display: grid; place-items: center; color: var(--muted); }
-  .card h3 { font-size: 0.98rem; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
-  .card-open { all: unset; cursor: pointer; }
-  .card-open:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 4px; }
-  .card .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; margin-top: 0.3rem; font-size: 0.78rem; color: var(--muted); }
-  .card-stock { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.6rem; }
-  .card-stock .n { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
-  .card-stock .n small { font-size: 0.78rem; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: 0.3rem; }
-  .card .btn { width: 100%; }
-  .card .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
-
-  /* ---------- Vista en lista ---------- */
-  .vista-lista .grid { grid-template-columns: minmax(0, 1fr); gap: 0.55rem; }
-  .vista-lista .card { display: grid; grid-template-columns: minmax(0, 1fr) 230px 170px; grid-template-areas: "top stock actions"; align-items: center; gap: 1rem; padding: 0.7rem 1rem; }
-  .vista-lista .card:hover { transform: none; }
-  .vista-lista .card-top { grid-area: top; align-items: center; }
-  .vista-lista .thumb { width: 46px; height: 46px; border-radius: 11px; }
-  .vista-lista .card-stock { grid-area: stock; justify-content: flex-start; align-items: center; gap: 0.9rem; }
-  .vista-lista .card-stock .n { font-size: 1.35rem; }
-  .vista-lista .card-actions { grid-area: actions; }
-  .vista-lista .card-actions:empty { display: none; }
 
   .pager { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.88rem; color: var(--muted); }
   .pager .btns { display: flex; gap: 0.5rem; }
@@ -91,68 +53,14 @@
   .nota { color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .trabajo { color: var(--muted); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* ---------- Cuadros emergentes ---------- */
-  dialog { margin: auto; padding: 0; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7); max-height: calc(100dvh - 2rem); }
-  dialog[open] { animation: pop 0.4s var(--ease); }
-  dialog::backdrop { background: rgba(2, 6, 18, 0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
-  @keyframes pop { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
-  #dlgRetiro { width: min(420px, calc(100vw - 2rem)); }
-  .dlg { padding: 1.5rem; display: grid; gap: 1.1rem; }
-  .dlg h2 { font-size: 1.15rem; letter-spacing: -0.01em; }
-  .dlg .who { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
-  .dlg .who strong { color: var(--text); }
-  .stepper { display: grid; grid-template-columns: 52px 1fr 52px; gap: 0.5rem; }
-  .stepper button { border: 1px solid var(--border); background: var(--surface-2); border-radius: 12px; display: grid; place-items: center; transition: background-color 0.2s; }
-  .stepper button:hover { background: var(--hover); }
-  .stepper input { text-align: center; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield; }
-  .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .dlg .btns { display: flex; justify-content: flex-end; gap: 0.7rem; }
-
-  /* Detalle del producto */
-  #dlgProd { width: min(780px, calc(100vw - 2rem)); overflow: auto; }
-  .pd { position: relative; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 1.4rem; padding: 1.4rem; }
-  .pd-close { position: absolute; top: 0.8rem; right: 0.8rem; z-index: 3; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; border: 1px solid var(--border); background: var(--surface); }
-  .pd-close:hover { background: var(--surface-2); }
-  .pd-main { position: relative; aspect-ratio: 1; border-radius: 16px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border); display: grid; place-items: center; color: var(--muted); }
-  .pd-main img { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .pd-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 50%; color: #fff; background: rgba(2, 6, 18, 0.6); }
-  .pd-nav:hover { background: rgba(2, 6, 18, 0.85); }
-  .pd-nav.prev { left: 0.6rem; } .pd-nav.next { right: 0.6rem; }
-  .pd-count { position: absolute; bottom: 0.6rem; left: 50%; transform: translateX(-50%); padding: 0.15rem 0.6rem; border-radius: 99px; font-size: 0.75rem; font-weight: 600; color: #fff; background: rgba(2, 6, 18, 0.65); }
-  .pd-thumbs { display: flex; gap: 0.5rem; margin-top: 0.6rem; overflow-x: auto; padding-bottom: 0.2rem; }
-  .pd-thumbs button { flex: none; width: 56px; height: 56px; padding: 0; border-radius: 11px; overflow: hidden; border: 2px solid transparent; background: var(--surface-2); opacity: 0.65; transition: opacity 0.2s, border-color 0.2s; }
-  .pd-thumbs button[aria-current="true"] { border-color: var(--primary); opacity: 1; }
-  .pd-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .pd-info { display: flex; flex-direction: column; gap: 0.9rem; min-width: 0; padding-top: 0.2rem; }
-  .pd-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; padding-right: 2.6rem; }
-  .pd-info h2 { font-size: 1.4rem; letter-spacing: -0.02em; line-height: 1.2; }
-  .pd-sku { color: var(--muted); font-size: 0.88rem; margin-top: -0.5rem; }
-  .pd-stock { display: flex; align-items: flex-end; gap: 0.8rem; padding: 0.9rem 1rem; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
-  .pd-stock .n { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
-  .pd-stock small { color: var(--muted); font-size: 0.82rem; display: block; }
-  .pd-desc { color: var(--muted); font-size: 0.92rem; line-height: 1.55; white-space: pre-line; }
-  .pd-extra { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
-  .pd-extra div { padding: 0.6rem 0.8rem; border-radius: 12px; border: 1px solid var(--border); }
-  .pd-extra dt { font-size: 0.75rem; color: var(--muted); }
-  .pd-extra dd { font-weight: 700; font-variant-numeric: tabular-nums; }
-  .pd-actions { display: flex; gap: 0.6rem; margin-top: auto; flex-wrap: wrap; }
-  .pd-actions .btn { flex: 1; }
 
   @media (max-width: 1100px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 860px) {
-    .vista-lista .card { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "top actions" "stock actions"; gap: 0.5rem 0.8rem; }
-    .vista-lista .card-actions .btn span { display: none; }
-    .vista-lista .card-actions .btn { padding: 0.7rem; }
-    .pd { grid-template-columns: minmax(0, 1fr); }
-  }
   @media (max-width: 700px) {
     .stats { gap: 0.7rem; }
     .stat { flex-direction: column; align-items: flex-start; gap: 0.6rem; padding: 0.9rem; }
     .hero { padding: 1.1rem; }
     .big-search input { font-size: 1rem; }
     .hint-keys { display: none; }
-    .grid { grid-template-columns: minmax(0, 1fr); }
-    .view-toggle button span { display: none; }
   }
 </style>
 {% endblock %}
@@ -249,68 +157,11 @@
 </section>
 {% endif %}
 
-<!-- Detalle del producto -->
-<dialog id="dlgProd" aria-labelledby="pNombre">
-  <div class="pd">
-    <button class="pd-close" type="button" id="pCerrar" aria-label="Cerrar"><svg class="ico" style="width:18px;height:18px"><use href="#i-x"/></svg></button>
-
-    <div>
-      <div class="pd-main">
-        <img id="pImg" alt="" hidden>
-        <svg class="ico" id="pPh" style="width:44px;height:44px"><use href="#i-image"/></svg>
-        <button class="pd-nav prev" type="button" id="pPrev" aria-label="Imagen anterior" hidden><svg class="ico"><use href="#i-chev-left"/></svg></button>
-        <button class="pd-nav next" type="button" id="pNext" aria-label="Imagen siguiente" hidden><svg class="ico"><use href="#i-chev-right"/></svg></button>
-        <span class="pd-count" id="pCount" hidden></span>
-      </div>
-      <div class="pd-thumbs" id="pThumbs"></div>
-    </div>
-
-    <div class="pd-info">
-      <div class="pd-badges" id="pBadges"></div>
-      <h2 id="pNombre"></h2>
-      <p class="pd-sku" id="pSku" hidden></p>
-      <div class="pd-stock">
-        <div class="n" id="pStock">0</div>
-        <div><small>disponibles</small><small id="pMin"></small></div>
-        <span id="pEstado" style="margin-left:auto"></span>
-      </div>
-      <p class="pd-desc" id="pDesc"></p>
-      <dl class="pd-extra" id="pExtra" hidden></dl>
-      <div class="pd-actions" id="pAcciones"></div>
-    </div>
-  </div>
-</dialog>
-
-<!-- Retirar pieza -->
-<dialog id="dlgRetiro" aria-labelledby="dlgTitulo">
-  <form method="post" class="dlg" id="formRetiro">
-    {% csrf_token %}
-    <input type="hidden" name="next" id="rNext" value="">
-    <div>
-      <h2 id="dlgTitulo">Retirar pieza</h2>
-      <p class="who"><strong id="rNombre"></strong> · <span id="rStock"></span> disponible(s)</p>
-    </div>
-    <div class="field">
-      <label for="rCantidad">Cantidad</label>
-      <div class="stepper">
-        <button type="button" id="rMenos" aria-label="Quitar una unidad"><svg class="ico"><use href="#i-minus"/></svg></button>
-        <input class="input" type="number" name="cantidad" id="rCantidad" min="1" value="1" inputmode="numeric" required>
-        <button type="button" id="rMas" aria-label="Agregar una unidad"><svg class="ico"><use href="#i-plus"/></svg></button>
-      </div>
-    </div>
-    <div class="field">
-      <label for="rNota">Para qué se usa (opcional)</label>
-      <input class="input" type="text" name="nota" id="rNota" maxlength="180" placeholder="Ej. Cambio de pantalla, equipo de Juan Pérez" autocomplete="off">
-    </div>
-    <div class="btns">
-      <button class="btn keep-label" type="button" id="rCancelar">Cancelar</button>
-      <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>Confirmar retiro</span></button>
-    </div>
-  </form>
-</dialog>
+{% include "producto/_modal.html" %}
 {% endblock %}
 
 {% block extra_js %}
+{% include "producto/_modal_js.html" %}
 <script>
   (function () {
     var q = document.getElementById('q');
@@ -339,130 +190,13 @@
     try { guardada = localStorage.getItem('tecnolab-vista') || 'cajas'; } catch (e) {}
     vista(guardada);
 
-    /* ---------- Retirar pieza ---------- */
-    var dlgR = document.getElementById('dlgRetiro'), formR = document.getElementById('formRetiro');
-    var cant = document.getElementById('rCantidad'), stockR = 0;
-    function clamp(n) { n = parseInt(n, 10); if (isNaN(n) || n < 1) n = 1; return Math.min(n, stockR); }
-
-    function abrirRetiro(url, nombre, stock) {
-      stockR = parseInt(stock, 10) || 0;
-      formR.action = url;
-      document.getElementById('rNext').value = location.pathname + location.search;
-      document.getElementById('rNombre').textContent = nombre;
-      document.getElementById('rStock').textContent = stockR;
-      cant.max = stockR; cant.value = 1;
-      document.getElementById('rNota').value = '';
-      dlgR.showModal();
-      cant.select();
-    }
-    document.getElementById('rMenos').addEventListener('click', function () { cant.value = clamp((parseInt(cant.value, 10) || 1) - 1); });
-    document.getElementById('rMas').addEventListener('click', function () { cant.value = clamp((parseInt(cant.value, 10) || 0) + 1); });
-    cant.addEventListener('change', function () { cant.value = clamp(cant.value); });
-    document.getElementById('rCancelar').addEventListener('click', function () { dlgR.close(); });
-    dlgR.addEventListener('click', function (e) { if (e.target === dlgR) dlgR.close(); });
-    formR.addEventListener('submit', function () { cant.value = clamp(cant.value); });
-
-    /* ---------- Detalle del producto ---------- */
-    var dlgP = document.getElementById('dlgProd');
-    var imgs = [], idx = 0;
-    var pImg = document.getElementById('pImg'), pPh = document.getElementById('pPh');
-    var pPrev = document.getElementById('pPrev'), pNext = document.getElementById('pNext'), pCount = document.getElementById('pCount');
-    var pThumbs = document.getElementById('pThumbs');
-
-    function el(tag, cls, txt) {
-      var e = document.createElement(tag);
-      if (cls) e.className = cls;
-      if (txt !== undefined) e.textContent = txt;
-      return e;
-    }
-    function mostrarImagen(i) {
-      idx = (i + imgs.length) % imgs.length;
-      pImg.src = imgs[idx];
-      pCount.textContent = (idx + 1) + ' / ' + imgs.length;
-      pThumbs.querySelectorAll('button').forEach(function (b, k) { b.setAttribute('aria-current', String(k === idx)); });
-    }
-    function galeria(lista, nombre) {
-      imgs = lista; pThumbs.innerHTML = '';
-      var hay = lista.length > 0, varias = lista.length > 1;
-      pImg.hidden = !hay; pPh.style.display = hay ? 'none' : '';
-      pPrev.hidden = pNext.hidden = pCount.hidden = !varias;
-      pImg.alt = nombre;
-      if (varias) {
-        lista.forEach(function (u, k) {
-          var b = el('button'); b.type = 'button'; b.setAttribute('aria-label', 'Ver imagen ' + (k + 1));
-          var i = el('img'); i.src = u; i.alt = ''; b.appendChild(i);
-          b.addEventListener('click', function () { mostrarImagen(k); });
-          pThumbs.appendChild(b);
-        });
-      }
-      if (hay) mostrarImagen(0);
-    }
-    pPrev.addEventListener('click', function () { mostrarImagen(idx - 1); });
-    pNext.addEventListener('click', function () { mostrarImagen(idx + 1); });
-    dlgP.addEventListener('keydown', function (e) {
-      if (imgs.length < 2) return;
-      if (e.key === 'ArrowLeft') mostrarImagen(idx - 1);
-      if (e.key === 'ArrowRight') mostrarImagen(idx + 1);
-    });
-
-    function badge(cls, txt) { return el('span', 'badge ' + cls, txt); }
-
-    function pintarDetalle(d) {
-      galeria(d.imagenes, d.nombre);
-      var b = document.getElementById('pBadges'); b.innerHTML = '';
-      if (d.es_tecnica) b.appendChild(badge('tec', 'Técnico'));
-      var c = el('span', 'sub', d.categoria); c.style.margin = '0'; c.style.alignSelf = 'center'; b.appendChild(c);
-
-      document.getElementById('pNombre').textContent = d.nombre;
-      var sku = document.getElementById('pSku');
-      sku.hidden = !d.sku; sku.textContent = d.sku ? 'SKU ' + d.sku : '';
-
-      document.getElementById('pStock').textContent = d.stock;
-      document.getElementById('pMin').textContent = 'Mínimo: ' + d.stock_minimo;
-      var est = document.getElementById('pEstado'); est.innerHTML = '';
-      est.appendChild(d.stock === 0 ? badge('out', 'Agotado') : d.stock <= d.stock_minimo ? badge('low', 'Stock bajo') : badge('in', 'Disponible'));
-
-      var desc = document.getElementById('pDesc');
-      desc.textContent = d.descripcion || 'Sin descripción.';
-      desc.style.opacity = d.descripcion ? '1' : '.6';
-
-      var extra = document.getElementById('pExtra'); extra.innerHTML = '';
-      extra.hidden = d.precio_venta === undefined;
-      if (d.precio_venta !== undefined) {
-        [['Precio de compra', d.precio_compra], ['Precio de venta', d.precio_venta]].forEach(function (par) {
-          var w = el('div'); w.appendChild(el('dt', null, par[0])); w.appendChild(el('dd', null, 'Bs ' + par[1])); extra.appendChild(w);
-        });
-      }
-
-      var acc = document.getElementById('pAcciones'); acc.innerHTML = '';
-      if (d.puede_retirar) {
-        var r = el('button', 'btn primary'); r.type = 'button';
-        r.textContent = 'Retirar pieza';
-        r.addEventListener('click', function () { dlgP.close(); abrirRetiro(d.retirar_url, d.nombre, d.stock); });
-        acc.appendChild(r);
-      }
-      if (d.editar_url) {
-        var e = el('a', 'btn', 'Editar producto'); e.href = d.editar_url; acc.appendChild(e);
-      }
-    }
-
-    function abrirDetalle(url) {
-      fetch(url, { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
-        .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
-        .then(function (d) { pintarDetalle(d); if (!dlgP.open) dlgP.showModal(); })
-        .catch(function () { window.alert('No se pudo cargar el producto. Inténtalo de nuevo.'); });
-    }
-
-    // Un solo oyente sirve aunque los resultados se vuelvan a dibujar
+    /* ---------- Resultados: abrir detalle o retirar (un solo oyente sirve aunque se redibujen) ---------- */
     document.getElementById('resultados').addEventListener('click', function (e) {
       var r = e.target.closest('.js-retirar');
-      if (r) { e.stopPropagation(); abrirRetiro(r.dataset.url, r.dataset.nombre, r.dataset.stock); return; }
+      if (r) { e.stopPropagation(); TL.producto.abrirRetiro(r.dataset.url, r.dataset.nombre, r.dataset.stock); return; }
       var card = e.target.closest('.card');
-      if (card && card.dataset.detalle) abrirDetalle(card.dataset.detalle);
+      if (card && card.dataset.detalle) TL.producto.abrirDetalle(card.dataset.detalle);
     });
-
-    document.getElementById('pCerrar').addEventListener('click', function () { dlgP.close(); });
-    dlgP.addEventListener('click', function (e) { if (e.target === dlgP) dlgP.close(); });
   })();
 </script>
 {% endblock %}

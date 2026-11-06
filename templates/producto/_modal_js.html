@@ -1,0 +1,301 @@
+{# Lógica del cuadro de detalle del producto (técnico y administrador). Expone TL.producto.abrirDetalle(url) y TL.producto.abrirRetiro(url, nombre, stock). #}
+<script>
+  (function () {
+    window.TL = window.TL || {};
+
+    function $(id) { return document.getElementById(id); }
+    function el(tag, cls, txt) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (txt !== undefined) e.textContent = txt;
+      return e;
+    }
+    function badge(cls, txt) { return el('span', 'badge ' + cls, txt); }
+    function icono(id) {
+      var ns = 'http://www.w3.org/2000/svg';
+      var s = document.createElementNS(ns, 'svg'); s.setAttribute('class', 'ico');
+      var u = document.createElementNS(ns, 'use'); u.setAttribute('href', '#' + id);
+      s.appendChild(u); return s;
+    }
+    function csrf() {
+      var i = document.querySelector('#formRetiro [name="csrfmiddlewaretoken"]');
+      return i ? i.value : '';
+    }
+    function pedir(url) {
+      return fetch(url, { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+        .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); });
+    }
+    function enviar(url, datos) {
+      return fetch(url, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'fetch', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(datos || {}).toString()
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) throw new Error(j.error || 'No se pudo completar la acción. Inténtalo de nuevo.');
+          return j;
+        });
+      });
+    }
+    function estadoStock(stock, minimo) { return stock === 0 ? 'out' : stock <= minimo ? 'low' : 'in'; }
+    var ETIQUETA = { out: 'Agotado', low: 'Stock bajo', 'in': 'Disponible' };
+
+    /* ---------- Retirar pieza ---------- */
+    var dlgR = $('dlgRetiro'), formR = $('formRetiro');
+    var cant = $('rCantidad'), stockR = 0;
+    function clamp(n) { n = parseInt(n, 10); if (isNaN(n) || n < 1) n = 1; return Math.min(n, stockR); }
+
+    function abrirRetiro(url, nombre, stock) {
+      stockR = parseInt(stock, 10) || 0;
+      formR.action = url;
+      $('rNext').value = location.pathname + location.search;
+      $('rNombre').textContent = nombre;
+      $('rStock').textContent = stockR;
+      cant.max = stockR; cant.value = 1;
+      $('rNota').value = '';
+      dlgR.showModal();
+      cant.select();
+    }
+    $('rMenos').addEventListener('click', function () { cant.value = clamp((parseInt(cant.value, 10) || 1) - 1); });
+    $('rMas').addEventListener('click', function () { cant.value = clamp((parseInt(cant.value, 10) || 0) + 1); });
+    cant.addEventListener('change', function () { cant.value = clamp(cant.value); });
+    $('rCancelar').addEventListener('click', function () { dlgR.close(); });
+    dlgR.addEventListener('click', function (e) { if (e.target === dlgR) dlgR.close(); });
+    formR.addEventListener('submit', function () { cant.value = clamp(cant.value); });
+
+    /* ---------- Detalle del producto ---------- */
+    var dlgP = $('dlgProd');
+    var imgs = [], idx = 0;
+    var pImg = $('pImg'), pPh = $('pPh'), pPrev = $('pPrev'), pNext = $('pNext'), pCount = $('pCount'), pThumbs = $('pThumbs');
+    var actual = null, actualUrl = '', pila = [];   // pila: productos por los que se pasó (para "Volver")
+
+    function mostrarImagen(i) {
+      idx = (i + imgs.length) % imgs.length;
+      pImg.src = imgs[idx];
+      pCount.textContent = (idx + 1) + ' / ' + imgs.length;
+      pThumbs.querySelectorAll('button').forEach(function (b, k) { b.setAttribute('aria-current', String(k === idx)); });
+    }
+    function galeria(lista, nombre) {
+      imgs = lista; pThumbs.innerHTML = '';
+      var hay = lista.length > 0, varias = lista.length > 1;
+      pImg.hidden = !hay; pPh.style.display = hay ? 'none' : '';
+      pPrev.hidden = pNext.hidden = pCount.hidden = !varias;
+      pImg.alt = nombre;
+      if (varias) {
+        lista.forEach(function (u, k) {
+          var b = el('button'); b.type = 'button'; b.setAttribute('aria-label', 'Ver imagen ' + (k + 1));
+          var i = el('img'); i.src = u; i.alt = ''; b.appendChild(i);
+          b.addEventListener('click', function () { mostrarImagen(k); });
+          pThumbs.appendChild(b);
+        });
+      }
+      if (hay) mostrarImagen(0);
+    }
+    pPrev.addEventListener('click', function () { mostrarImagen(idx - 1); });
+    pNext.addEventListener('click', function () { mostrarImagen(idx + 1); });
+    dlgP.addEventListener('keydown', function (e) {
+      if (imgs.length < 2 || e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowLeft') mostrarImagen(idx - 1);
+      if (e.key === 'ArrowRight') mostrarImagen(idx + 1);
+    });
+
+    /* ---------- Productos compatibles ---------- */
+    var cpBuscar = $('pCompatBuscar'), cpQ = $('pCompatQ'), cpRes = $('pCompatRes'), cpSinRes = $('pCompatSinRes');
+    var cpMsg = $('pCompatMsg'), cpLista = $('pCompatLista'), cpVacio = $('pCompatVacio');
+    var timerBuscar = null, seqBuscar = 0, ocupado = false;
+
+    function mensaje(texto, esError) {
+      cpMsg.hidden = !texto; cpMsg.textContent = texto || '';
+      cpMsg.className = 'cp-msg' + (esError ? ' err' : '');
+    }
+    function miniatura(it) {
+      if (it.imagen) { var i = el('img', 'cp-thumb'); i.src = it.imagen; i.alt = ''; i.loading = 'lazy'; return i; }
+      var d = el('div', 'cp-thumb'); d.setAttribute('aria-hidden', 'true'); d.appendChild(icono('i-image')); return d;
+    }
+    function textoProducto(it, conStock) {
+      var t = el('span', 'cp-txt');
+      t.appendChild(el('span', 'cp-name', it.nombre));
+      var sub = el('span', 'cp-sub');
+      var base = [it.sku, it.categoria].filter(Boolean).join(' · ');
+      sub.appendChild(document.createTextNode(base));
+      if (conStock) sub.appendChild(badge(estadoStock(it.stock, it.stock_minimo), it.stock + ' disp.'));
+      t.appendChild(sub);
+      return t;
+    }
+
+    function pintarLista() {
+      var items = actual.compatibles || [];
+      cpLista.innerHTML = '';
+      cpVacio.hidden = items.length > 0;
+      $('pCompatN').textContent = items.length ? ' (' + items.length + ')' : '';
+      items.forEach(function (it) {
+        var li = el('li', 'cp');
+        var abrir = el('button', 'cp-main'); abrir.type = 'button';
+        abrir.title = 'Ver ' + it.nombre;
+        abrir.appendChild(miniatura(it)); abrir.appendChild(textoProducto(it, true));
+        abrir.addEventListener('click', function () { irA(it.detalle_url); });
+        li.appendChild(abrir);
+        if (actual.puede_compat) {
+          var x = el('button', 'cp-x'); x.type = 'button';
+          x.setAttribute('aria-label', 'Quitar compatibilidad con ' + it.nombre); x.title = 'Quitar';
+          x.appendChild(icono('i-x'));
+          x.addEventListener('click', function () { quitar(it); });
+          li.appendChild(x);
+        }
+        cpLista.appendChild(li);
+      });
+    }
+
+    function pintarResultados(lista) {
+      cpRes.innerHTML = '';
+      cpSinRes.hidden = lista.length > 0;
+      lista.forEach(function (it) {
+        var li = el('li');
+        var b = el('button', 'cp-opt'); b.type = 'button';
+        b.appendChild(miniatura(it)); b.appendChild(textoProducto(it, false));
+        var mas = el('span', 'cp-add'); mas.appendChild(icono('i-plus')); b.appendChild(mas);
+        b.setAttribute('aria-label', 'Añadir ' + it.nombre + ' como compatible');
+        b.addEventListener('click', function () { agregar(it, li); });
+        li.appendChild(b); cpRes.appendChild(li);
+      });
+    }
+
+    function buscar() {
+      if (!actual || !actual.puede_compat) return;
+      var yo = ++seqBuscar, que = actual;
+      pedir(actual.compat_buscar_url + '?q=' + encodeURIComponent(cpQ.value.trim()))
+        .then(function (j) { if (yo === seqBuscar && que === actual) pintarResultados(j.resultados || []); })
+        .catch(function () { if (yo === seqBuscar) mensaje('No se pudo buscar. Inténtalo de nuevo.', true); });
+    }
+
+    function alternarBuscar() {
+      var abrir = cpBuscar.hidden;
+      cpBuscar.hidden = !abrir;
+      var boton = $('pCompatAdd'); if (boton) boton.setAttribute('aria-expanded', String(abrir));
+      if (abrir) {
+        mensaje('');
+        cpQ.value = '';
+        buscar();
+        cpBuscar.scrollIntoView({ block: 'nearest' });
+        cpQ.focus();
+      }
+    }
+    cpQ.addEventListener('input', function () { clearTimeout(timerBuscar); timerBuscar = setTimeout(buscar, 220); });
+
+    function agregar(it, li) {
+      if (ocupado) return;
+      ocupado = true; var que = actual;
+      enviar(actual.compat_agregar_url, { otro: it.id })
+        .then(function (j) {
+          if (que !== actual) return;
+          actual.compatibles = j.compatibles; pintarLista();
+          li.remove(); cpSinRes.hidden = cpRes.children.length > 0;
+          mensaje(j.mensaje);
+        })
+        .catch(function (e) { mensaje(e.message, true); })
+        .then(function () { ocupado = false; });
+    }
+    function quitar(it) {
+      if (ocupado || !window.confirm('¿Quitar la compatibilidad con “' + it.nombre + '”?')) return;
+      ocupado = true; var que = actual;
+      enviar(it.quitar_url)
+        .then(function (j) {
+          if (que !== actual) return;
+          actual.compatibles = j.compatibles; pintarLista(); mensaje(j.mensaje);
+          if (!cpBuscar.hidden) buscar();   // el producto quitado vuelve a aparecer como opción
+        })
+        .catch(function (e) { mensaje(e.message, true); })
+        .then(function () { ocupado = false; });
+    }
+
+    function pintarCompat(d) {
+      var hay = d.usa_compatibilidad || (d.compatibles && d.compatibles.length > 0);
+      $('pCompat').hidden = !hay;
+      cpBuscar.hidden = true; cpQ.value = ''; cpRes.innerHTML = ''; mensaje('');
+      if (hay) pintarLista();
+    }
+
+    /* ---------- Pintar el detalle ---------- */
+    function pintarDetalle(d) {
+      galeria(d.imagenes, d.nombre);
+
+      var volver = $('pVolver');
+      volver.hidden = pila.length === 0;
+      if (pila.length) volver.querySelector('span').textContent = 'Volver a ' + pila[pila.length - 1].nombre;
+
+      var b = $('pBadges'); b.innerHTML = '';
+      if (d.es_tecnica) b.appendChild(badge('tec', 'Técnico'));
+      var c = el('span', 'sub', d.categoria); c.style.margin = '0'; c.style.alignSelf = 'center'; b.appendChild(c);
+
+      $('pNombre').textContent = d.nombre;
+      var sku = $('pSku');
+      sku.hidden = !d.sku; sku.textContent = d.sku ? 'SKU ' + d.sku : '';
+
+      $('pStock').textContent = d.stock;
+      $('pMin').textContent = 'Mínimo: ' + d.stock_minimo;
+      var est = $('pEstado'); est.innerHTML = '';
+      var e = estadoStock(d.stock, d.stock_minimo);
+      est.appendChild(badge(e, ETIQUETA[e]));
+
+      var desc = $('pDesc');
+      desc.textContent = d.descripcion || 'Sin descripción.';
+      desc.style.opacity = d.descripcion ? '1' : '.6';
+
+      var extra = $('pExtra'); extra.innerHTML = '';
+      extra.hidden = d.precio_venta === undefined;
+      if (d.precio_venta !== undefined) {
+        [['Precio de compra', d.precio_compra], ['Precio de venta', d.precio_venta]].forEach(function (par) {
+          var w = el('div'); w.appendChild(el('dt', null, par[0])); w.appendChild(el('dd', null, 'Bs ' + par[1])); extra.appendChild(w);
+        });
+      }
+
+      var acc = $('pAcciones'); acc.innerHTML = '';
+      if (d.puede_retirar) {
+        var r = el('button', 'btn primary'); r.type = 'button';
+        r.textContent = 'Retirar pieza';
+        r.addEventListener('click', function () { dlgP.close(); abrirRetiro(d.retirar_url, d.nombre, d.stock); });
+        acc.appendChild(r);
+      }
+      if (d.puede_compat) {
+        var m = el('button', 'btn keep-label'); m.type = 'button'; m.id = 'pCompatAdd';
+        m.setAttribute('aria-expanded', 'false'); m.setAttribute('aria-controls', 'pCompatBuscar');
+        m.appendChild(icono('i-plus')); m.appendChild(el('span', null, 'Añadir producto compatible'));
+        m.addEventListener('click', alternarBuscar);
+        acc.appendChild(m);
+      }
+      if (d.editar_url) {
+        var ed = el('a', 'btn', 'Editar producto'); ed.href = d.editar_url; acc.appendChild(ed);
+      }
+
+      pintarCompat(d);
+    }
+
+    function mostrar(url, d) {
+      actualUrl = url; actual = d;
+      pintarDetalle(d);
+      if (!dlgP.open) dlgP.showModal();
+      dlgP.scrollTop = 0;
+    }
+    function cargar(url, despues) {
+      pedir(url).then(despues).catch(function () { window.alert('No se pudo cargar el producto. Inténtalo de nuevo.'); });
+    }
+    // Desde una lista: empieza un recorrido nuevo
+    function abrirDetalle(url) { cargar(url, function (d) { pila = []; mostrar(url, d); }); }
+    // Desde un compatible: se recuerda por dónde se venía
+    function irA(url) {
+      cargar(url, function (d) { pila.push({ url: actualUrl, nombre: actual.nombre }); mostrar(url, d); });
+    }
+    function volver() {
+      if (!pila.length) return;
+      var previo = pila[pila.length - 1];
+      cargar(previo.url, function (d) { pila.pop(); mostrar(previo.url, d); });
+    }
+    $('pVolver').addEventListener('click', volver);
+
+    $('pCerrar').addEventListener('click', function () { dlgP.close(); });
+    dlgP.addEventListener('click', function (e) { if (e.target === dlgP) dlgP.close(); });
+    dlgP.addEventListener('close', function () { pila = []; actual = null; seqBuscar++; });
+
+    TL.producto = { abrirDetalle: abrirDetalle, abrirRetiro: abrirRetiro };
+  })();
+</script>

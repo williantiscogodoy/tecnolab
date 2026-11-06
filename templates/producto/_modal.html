@@ -1,0 +1,75 @@
+{# Cuadro de detalle del producto + cuadro para retirar piezas (técnico y administrador) #}
+<dialog id="dlgProd" aria-labelledby="pNombre">
+  <div class="pd">
+    <button class="pd-close" type="button" id="pCerrar" aria-label="Cerrar"><svg class="ico" style="width:18px;height:18px"><use href="#i-x"/></svg></button>
+
+    <div>
+      <div class="pd-main">
+        <img id="pImg" alt="" hidden>
+        <svg class="ico" id="pPh" style="width:44px;height:44px"><use href="#i-image"/></svg>
+        <button class="pd-nav prev" type="button" id="pPrev" aria-label="Imagen anterior" hidden><svg class="ico"><use href="#i-chev-left"/></svg></button>
+        <button class="pd-nav next" type="button" id="pNext" aria-label="Imagen siguiente" hidden><svg class="ico"><use href="#i-chev-right"/></svg></button>
+        <span class="pd-count" id="pCount" hidden></span>
+      </div>
+      <div class="pd-thumbs" id="pThumbs"></div>
+    </div>
+
+    <div class="pd-info">
+      <button class="pd-volver" type="button" id="pVolver" hidden><svg class="ico"><use href="#i-arrow-left"/></svg><span></span></button>
+      <div class="pd-badges" id="pBadges"></div>
+      <h2 id="pNombre"></h2>
+      <p class="pd-sku" id="pSku" hidden></p>
+      <div class="pd-stock">
+        <div class="n" id="pStock">0</div>
+        <div><small>disponibles</small><small id="pMin"></small></div>
+        <span id="pEstado" style="margin-left:auto"></span>
+      </div>
+      <p class="pd-desc" id="pDesc"></p>
+      <dl class="pd-extra" id="pExtra" hidden></dl>
+      <div class="pd-actions" id="pAcciones"></div>
+    </div>
+
+    <section class="pd-compat" id="pCompat" aria-labelledby="pCompatTitulo" hidden>
+      <div class="pd-compat-head">
+        <h3 id="pCompatTitulo">Productos compatibles<small id="pCompatN"></small></h3>
+        <p>Piezas que sirven en lugar de esta o son similares.</p>
+      </div>
+      <div class="cp-buscar" id="pCompatBuscar" hidden>
+        <input class="input" type="search" id="pCompatQ" placeholder="Busca por nombre, SKU o categoría" aria-label="Buscar producto compatible" autocomplete="off">
+        <ul class="cp-res" id="pCompatRes"></ul>
+        <p class="cp-nores" id="pCompatSinRes" hidden>No hay más productos que coincidan.</p>
+      </div>
+      <p class="cp-msg" id="pCompatMsg" role="status" aria-live="polite" hidden></p>
+      <ul class="cp-lista" id="pCompatLista"></ul>
+      <p class="cp-vacio" id="pCompatVacio" hidden>Todavía no hay productos compatibles.</p>
+    </section>
+  </div>
+</dialog>
+
+<!-- Retirar pieza -->
+<dialog id="dlgRetiro" aria-labelledby="dlgTitulo">
+  <form method="post" class="dlg" id="formRetiro">
+    {% csrf_token %}
+    <input type="hidden" name="next" id="rNext" value="">
+    <div>
+      <h2 id="dlgTitulo">Retirar pieza</h2>
+      <p class="who"><strong id="rNombre"></strong> · <span id="rStock"></span> disponible(s)</p>
+    </div>
+    <div class="field">
+      <label for="rCantidad">Cantidad</label>
+      <div class="stepper">
+        <button type="button" id="rMenos" aria-label="Quitar una unidad"><svg class="ico"><use href="#i-minus"/></svg></button>
+        <input class="input" type="number" name="cantidad" id="rCantidad" min="1" value="1" inputmode="numeric" required>
+        <button type="button" id="rMas" aria-label="Agregar una unidad"><svg class="ico"><use href="#i-plus"/></svg></button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="rNota">Para qué se usa (opcional)</label>
+      <input class="input" type="text" name="nota" id="rNota" maxlength="180" placeholder="Ej. Cambio de pantalla, equipo de Juan Pérez" autocomplete="off">
+    </div>
+    <div class="btns">
+      <button class="btn keep-label" type="button" id="rCancelar">Cancelar</button>
+      <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>Confirmar retiro</span></button>
+    </div>
+  </form>
+</dialog>
