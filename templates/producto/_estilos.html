@@ -45,7 +45,45 @@
   dialog[open] { animation: pop 0.4s var(--ease); }
   dialog::backdrop { background: rgba(2, 6, 18, 0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
   @keyframes pop { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
-  #dlgRetiro { width: min(420px, calc(100vw - 2rem)); }
+  #dlgRetiro { width: min(520px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow-y: auto; }
+  #dlgRetiro .field { display: grid; gap: 0.4rem; }
+  .r-precios { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+  .r-precios div { padding: 0.6rem 0.85rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); }
+  .r-precios small { display: block; color: var(--muted); font-size: 0.76rem; }
+  .r-precios strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+  .r-fila { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0.9rem; align-items: start; }
+  .r-fila .stepper { grid-template-columns: 42px 1fr 42px; }
+  .r-fila .stepper input { font-size: 1.15rem; min-width: 0; }
+  .r-total { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: baseline; padding: 0.7rem 0.9rem; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font-size: 0.88rem; color: var(--muted); }
+  .r-total strong { color: var(--text); font-size: 1.15rem; font-variant-numeric: tabular-nums; margin-left: 0.3rem; }
+  .r-total .pos { color: var(--ok); font-weight: 600; }
+  .r-total .neg { color: var(--danger); font-weight: 600; }
+  .r-aviso { color: var(--warn); font-size: 0.84rem; line-height: 1.4; margin-top: -0.4rem; }
+  .r-sel { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.8rem; border-radius: 12px; border: 1.5px solid rgba(59, 130, 246, 0.5); background: rgba(59, 130, 246, 0.08); }
+  .r-av { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 0.85rem; color: #fff; background: linear-gradient(135deg, #3b82f6, #22d3ee); }
+  .r-txt { display: grid; min-width: 0; flex: 1; }
+  .r-txt strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .r-txt small { color: var(--muted); font-size: 0.78rem; }
+  .r-txt small.debe { color: var(--danger); font-weight: 600; }
+  .r-link { align-self: flex-start; border: 0; background: none; padding: 0.2rem 0; color: var(--primary); font-weight: 600; font-size: 0.86rem; }
+  .r-link:hover { text-decoration: underline; }
+  .r-sel .r-link { align-self: center; }
+  #rBuscar { display: grid; gap: 0.5rem; }
+  .r-res { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; max-height: 190px; overflow-y: auto; }
+  .r-res button { width: 100%; display: flex; align-items: center; gap: 0.7rem; padding: 0.45rem 0.55rem; border-radius: 11px; border: 1px solid transparent; background: transparent; text-align: left; }
+  .r-res button:hover, .r-res button:focus-visible { background: var(--hover); border-color: var(--border); }
+  .r-res .r-av { width: 30px; height: 30px; font-size: 0.8rem; }
+  .r-vacio { color: var(--muted); font-size: 0.86rem; padding: 0.2rem 0.1rem; }
+  .r-nuevo { display: grid; gap: 0.5rem; padding: 0.8rem; border-radius: 12px; border: 1px dashed var(--border); }
+  .r-nuevo[hidden], #rClienteSel[hidden], #rBuscar[hidden], .r-err[hidden], .r-aviso[hidden] { display: none; }
+  .r-err { color: var(--danger); font-size: 0.84rem; font-weight: 600; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0.4rem; padding: 0.3rem; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+  .seg label { position: relative; display: grid; place-items: center; padding: 0.55rem 0.4rem; border-radius: 9px; font-size: 0.9rem; font-weight: 600; color: var(--muted); cursor: pointer; transition: background-color 0.2s, color 0.2s; }
+  .seg input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .seg label:has(input:checked) { background: var(--primary); color: #fff; }
+  .seg label:has(input[value="FIADO"]:checked) { background: var(--danger); }
+  .seg label:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+  @media (max-width: 520px) { .r-fila { grid-template-columns: minmax(0, 1fr); } }
   .dlg { padding: 1.5rem; display: grid; gap: 1.1rem; }
   .dlg h2 { font-size: 1.15rem; letter-spacing: -0.01em; }
   .dlg .who { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
@@ -84,6 +122,9 @@
   .pd-extra div { padding: 0.6rem 0.8rem; border-radius: 12px; border: 1px solid var(--border); }
   .pd-extra dt { font-size: 0.75rem; color: var(--muted); }
   .pd-extra dd { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pd-auto { position: absolute; bottom: 0.5rem; left: 0.6rem; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; border: 0; color: #fff; background: rgba(2, 6, 18, 0.65); transition: background-color 0.2s; }
+  .pd-auto:hover { background: rgba(2, 6, 18, 0.85); }
+  .pd-fecha { margin-top: -0.35rem; color: var(--muted); font-size: 0.8rem; }
   .pd-actions { display: flex; gap: 0.6rem; margin-top: auto; flex-wrap: wrap; }
   .pd-actions .btn { flex: 1; }
 

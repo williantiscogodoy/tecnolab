@@ -18,6 +18,21 @@
   .note { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.83rem; color: var(--muted); line-height: 1.45; margin-bottom: 0.9rem; }
   .note .ico { width: 17px; height: 17px; margin-top: 1px; color: var(--primary); }
   .qty.out { color: var(--danger); font-weight: 700; }
+  .equipos-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+  .equipos-lista li { display: grid; gap: 0.1rem; padding: 0.6rem 0.8rem; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+  .equipos-lista strong { font-weight: 700; }
+  .equipos-lista span { color: var(--muted); font-size: 0.88rem; font-weight: 400; }
+  .money { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin: 0; }
+  .money div { padding: 0.7rem 0.9rem; border-radius: 12px; border: 1px solid var(--border); }
+  .money dt { font-size: 0.78rem; color: var(--muted); }
+  .money dd { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .margin { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.8rem 1rem; margin-top: 0.8rem; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font-size: 0.88rem; color: var(--muted); }
+  .margin strong { font-variant-numeric: tabular-nums; color: var(--text); }
+  .margin .pos { color: var(--ok); }
+  .margin .neg { color: var(--danger); }
+  :root[data-theme="light"] .margin .pos { color: #047857; }
+  :root[data-theme="light"] .margin .neg { color: #be123c; }
+  .money-note { color: var(--muted); font-size: 0.83rem; margin-top: 0.7rem; }
   :root[data-theme="light"] .qty.out { color: #be123c; }
   @media (max-width: 1000px) { .cols { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 520px) { .info { grid-template-columns: minmax(0, 1fr); gap: 0.15rem; } .info dd { margin-bottom: 0.7rem; } }
@@ -31,13 +46,21 @@
   <div class="stack">
     <section class="panel reveal" style="--i:1">
       <div class="panel-head">
-        <div class="head-line" style="width:100%"><div><h2>Datos de la reparación</h2><p>Registrada el {{ rep.creado|date:"d/m/Y \a \l\a\s H:i" }}</p></div>{% include "reparaciones/_estado.html" with r=rep %}</div>
+        <div class="head-line" style="width:100%"><div><h2>Datos de la reparación</h2><p>Registrada el {{ rep.creado|date:"d/m/Y \a \l\a\s H:i" }}</p></div><div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">{% if puede_cobrar %}<button type="button" class="btn-bien js-bien" data-url="{% url 'reparacion_resumen' rep.pk %}"><svg class="ico"><use href="#i-check"/></svg>Bien</button>{% endif %}{% include "reparaciones/_estado.html" with r=rep %}</div></div>
       </div>
       <dl class="info">
         <dt>Cliente</dt><dd>{{ rep.cliente }}</dd>
-        <dt>Teléfono</dt><dd>{% if rep.telefono_cliente %}<a href="tel:{{ rep.telefono_cliente }}">{{ rep.telefono_cliente }}</a>{% else %}—{% endif %}</dd>
-        <dt>Equipo</dt><dd>{{ rep.equipo }}</dd>
-        <dt>Arreglo</dt><dd>{{ rep.trabajo|default:"—" }}</dd>
+        <dt>Contacto</dt><dd>{% if rep.telefono_cliente %}<a href="tel:{{ rep.telefono_cliente }}">{{ rep.telefono_cliente }}</a>{% else %}—{% endif %}</dd>
+        <dt>{% if rep.equipos.all|length > 1 %}Teléfonos{% else %}Teléfono{% endif %}</dt>
+        <dd>
+          <ul class="equipos-lista">
+            {% for e in rep.equipos.all %}
+            <li><strong>{{ e.modelo }}</strong><span>{{ e.falla|default:"Sin falla anotada" }}</span></li>
+            {% empty %}
+            <li><strong>{{ rep.equipo }}</strong><span>{{ rep.trabajo|default:"Sin falla anotada" }}</span></li>
+            {% endfor %}
+          </ul>
+        </dd>
         <dt>Técnico</dt><dd>{{ rep.tecnico.get_username|default:"—" }}</dd>
         <dt>Última actualización</dt><dd>{{ rep.actualizado|date:"d/m/Y H:i" }}</dd>
       </dl>
@@ -48,12 +71,13 @@
       {% if rep.piezas.all %}
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Pieza</th><th class="num">Cant.</th><th class="hide-sm">Fecha</th></tr></thead>
+          <thead><tr><th>Pieza</th><th class="num">Cant.</th><th class="num">Costo</th><th class="hide-sm">Fecha</th></tr></thead>
           <tbody>
             {% for pz in rep.piezas.all %}
             <tr>
               <td><span class="name">{{ pz.producto.nombre }}</span>{% if pz.producto.sku %}<span class="sub">{{ pz.producto.sku }}</span>{% endif %}</td>
               <td class="num"><span class="qty out">−{{ pz.cantidad }}</span></td>
+              <td class="num" style="white-space:nowrap">Bs {{ pz.subtotal|floatformat:"2g" }}</td>
               <td class="hide-sm" style="white-space:nowrap">{{ pz.creado|date:"d/m/Y H:i" }}</td>
             </tr>
             {% endfor %}
@@ -64,20 +88,38 @@
       <div class="empty static" style="min-height:120px"><svg class="ico"><use href="#i-wrench"/></svg><strong>Sin piezas del inventario</strong>Este trabajo no usó repuestos.</div>
       {% endif %}
     </section>
+
+    <section class="panel reveal" style="--i:3">
+      <div class="panel-head"><div><h2>Cobro y ganancia</h2><p>Lo que cobras menos lo que costaron las piezas</p></div></div>
+      <dl class="money">
+        <div><dt>{% if rep.cobrada %}Cobrado en caja{% else %}Cobro al cliente{% endif %}</dt><dd>{% if rep.ingreso is not None %}Bs {{ rep.ingreso|floatformat:"2g" }}{% else %}Sin anotar{% endif %}</dd></div>
+        <div><dt>Inversión en piezas</dt><dd>Bs {{ rep.costo_piezas|floatformat:"2g" }}</dd></div>
+      </dl>
+      {% if rep.ingreso is not None %}
+      {% with g=rep.ganancia m=rep.margen %}
+      <div class="margin"><span>Ganancia del arreglo</span><strong class="{% if g >= 0 %}pos{% else %}neg{% endif %}">{% if g < 0 %}−{% endif %}Bs {{ g|floatformat:"2g"|cut:"-" }}{% if m is not None %} · {% if m < 0 %}−{% endif %}{{ m|floatformat:"2"|cut:"-" }} %{% endif %}</strong></div>
+      {% endwith %}
+      {% else %}
+      <p class="money-note">Anota cuánto vas a cobrar en “Seguimiento” para ver tu ganancia.</p>
+      {% endif %}
+      {% if rep.cobrada %}<p class="money-note">Cobrado el {{ rep.cobrado_en|date:"d/m/Y \a \l\a\s H:i" }}{% if rep.cobrado_por %} por {{ rep.cobrado_por.get_username }}{% endif %}. Este monto ya está sumado en la caja.</p>{% endif %}
+      <p class="money-note">La inversión usa el precio de compra de cada pieza al momento de usarla.</p>
+    </section>
   </div>
 
   <div class="stack">
-    <section class="panel reveal" style="--i:3">
+    <section class="panel reveal" style="--i:4">
       <div class="panel-head"><div><h2>Seguimiento</h2><p>Cambia el estado y anota avances</p></div></div>
       <form method="post" action="{% url 'reparacion_actualizar' rep.pk %}" class="fields">
         {% csrf_token %}
         <div class="field"><label for="{{ estado_form.estado.id_for_label }}">Estado</label>{{ estado_form.estado }}</div>
+        <div class="field {% if estado_form.cobro.errors %}has-error{% endif %}"><label for="{{ estado_form.cobro.id_for_label }}">Cobro al cliente</label><div class="input-affix"><span>Bs</span>{{ estado_form.cobro }}</div>{% for e in estado_form.cobro.errors %}<span class="err" role="alert">{{ e }}</span>{% endfor %}</div>
         <div class="field"><label for="{{ estado_form.notas.id_for_label }}">Notas</label>{{ estado_form.notas }}</div>
         <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>Guardar cambios</span></button>
       </form>
     </section>
 
-    <section class="panel reveal" style="--i:4">
+    <section class="panel reveal" style="--i:5">
       <div class="panel-head"><div><h2>Agregar piezas</h2><p>Se descuentan al instante</p></div></div>
       {% if rep.abierta %}
       <form method="post" action="{% url 'reparacion_pieza' rep.pk %}" id="formPiezas">
@@ -92,4 +134,6 @@
     </section>
   </div>
 </div>
+
+{% include "reparaciones/_cobro_modal.html" %}
 {% endblock %}

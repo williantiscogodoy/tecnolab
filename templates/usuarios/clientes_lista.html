@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Usuarios{% endblock %}
+{% block page_title %}Usuarios{% endblock %}
+{% block page_sub %}<span class="date">Clientes que compran piezas y personal del taller</span>{% endblock %}
+
+{% block extra_head %}{% include "usuarios/_estilos.html" %}{% endblock %}
+
+{% block actions %}
+<button class="btn primary" type="button" id="btnNuevo" aria-label="Nuevo cliente">
+  <svg class="ico"><use href="#i-plus"/></svg><span>Nuevo cliente</span>
+</button>
+{% endblock %}
+
+{% block content %}
+{% include "usuarios/_tabs.html" %}
+
+<section class="summary reveal" style="--i:1" aria-label="Resumen de clientes">
+  <div class="stat">
+    <div class="chip cash"><svg class="ico"><use href="#i-users"/></svg></div>
+    <div><small>Clientes activos</small><strong>{{ conteos.activos }}</strong></div>
+  </div>
+  <div class="stat">
+    <div class="chip out"><svg class="ico"><use href="#i-wallet"/></svg></div>
+    <div><small>Por cobrar (fiado)</small><strong>Bs {{ deuda_total|floatformat:"2g" }}</strong><span class="sub-n">{% if n_deudores == 1 %}1 cliente con deuda{% else %}{{ n_deudores }} clientes con deuda{% endif %}</span></div>
+  </div>
+</section>
+
+<section class="panel reveal" style="--i:2">
+  <form class="toolbar" method="get" role="search">
+    {% if ver %}<input type="hidden" name="ver" value="{{ ver }}">{% endif %}
+    <div class="search">
+      <svg class="ico"><use href="#i-search"/></svg>
+      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre o teléfono" aria-label="Buscar clientes">
+    </div>
+    <button class="btn keep-label" type="submit">Buscar</button>
+  </form>
+
+  <div class="pills" aria-label="Filtrar clientes">
+    <a class="pill" href="?{% if q %}q={{ q|urlencode }}{% endif %}" {% if not ver %}aria-current="true"{% endif %}>Activos <small>{{ conteos.activos }}</small></a>
+    <a class="pill" href="?ver=deuda{% if q %}&q={{ q|urlencode }}{% endif %}" {% if ver == 'deuda' %}aria-current="true"{% endif %}>Con deuda <small>{{ conteos.deuda }}</small></a>
+    <a class="pill" href="?ver=inactivos{% if q %}&q={{ q|urlencode }}{% endif %}" {% if ver == 'inactivos' %}aria-current="true"{% endif %}>Inactivos <small>{{ conteos.inactivos }}</small></a>
+  </div>
+
+  {% if page_obj %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th class="num hide-sm">Compras</th>
+          <th class="num hide-sm">Total comprado</th>
+          <th class="num">Debe</th>
+          <th><span style="position:absolute;left:-9999px">Acciones</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in page_obj %}
+        <tr>
+          <td>
+            <div class="cell-user">
+              <div class="avatar-c" aria-hidden="true">{{ c.nombre|first|upper }}</div>
+              <div style="min-width:0">
+                <a class="name" href="{% url 'cliente_detalle' c.pk %}">{{ c.nombre }}</a>{% if not c.activo %} <span class="badge off">Inactivo</span>{% endif %}
+                <span class="sub">{{ c.telefono|default:"Sin teléfono" }}</span>
+              </div>
+            </div>
+          </td>
+          <td class="num hide-sm">{{ c.n_compras }}</td>
+          <td class="num hide-sm money">Bs {{ c.total_comprado|floatformat:"2g" }}</td>
+          <td class="num money">{% if c.debe > 0 %}<span class="debe">Bs {{ c.debe|floatformat:"2g" }}</span>{% else %}<span class="alday">Al día</span>{% endif %}</td>
+          <td><div class="row-actions"><a class="act" href="{% url 'cliente_detalle' c.pk %}" aria-label="Ver detalle de {{ c.nombre }}" title="Ver detalle"><svg class="ico"><use href="#i-chev-right"/></svg></a></div></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager">
+    <span>Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="btns">
+      <a class="btn keep-label" href="?{% if qs %}{{ qs }}&{% endif %}page={{ pag_anterior }}" {% if not page_obj.has_previous %}aria-disabled="true" tabindex="-1"{% endif %}>Anterior</a>
+      <a class="btn keep-label" href="?{% if qs %}{{ qs }}&{% endif %}page={{ pag_siguiente }}" {% if not page_obj.has_next %}aria-disabled="true" tabindex="-1"{% endif %}>Siguiente</a>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty static">
+    <svg class="ico"><use href="#i-users"/></svg>
+    {% if hay_filtros %}
+      <strong>No hay clientes con esos filtros</strong>
+      Prueba con otra búsqueda o quita los filtros.
+      <a class="btn keep-label" href="{% url 'clientes_lista' %}">Limpiar filtros</a>
+    {% else %}
+      <strong>Aún no tienes clientes</strong>
+      Crea el primero aquí, o directamente al retirar una pieza.
+      <button class="btn primary keep-label" type="button" id="btnNuevoVacio"><svg class="ico"><use href="#i-plus"/></svg><span>Nuevo cliente</span></button>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+<dialog id="dlgCliente" aria-labelledby="dlgClienteTitulo">
+  <form method="post" class="dlg" action="{% url 'cliente_crear' %}" novalidate>
+    {% csrf_token %}
+    <h2 id="dlgClienteTitulo">Nuevo cliente</h2>
+    <p>Después podrás ver todo lo que compró y lo que debe.</p>
+    <div class="field"><label for="cNombre">Nombre</label><input class="input" type="text" name="nombre" id="cNombre" maxlength="120" required placeholder="Ej. Juan Pérez" autocomplete="off"></div>
+    <div class="field"><label for="cTel">Teléfono (opcional)</label><input class="input" type="tel" name="telefono" id="cTel" maxlength="30" placeholder="Ej. 70012345" inputmode="tel" autocomplete="off"></div>
+    <div class="field"><label for="cNotas">Notas (opcional)</label><textarea class="input" name="notas" id="cNotas" rows="2" placeholder="Dónde trabaja, referencias…"></textarea></div>
+    <div class="btns">
+      <button class="btn keep-label" type="button" data-cerrar>Cancelar</button>
+      <button class="btn primary keep-label" type="submit"><span>Guardar cliente</span></button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var dlg = document.getElementById('dlgCliente');
+    function abrir() { dlg.querySelector('form').reset(); dlg.showModal(); document.getElementById('cNombre').focus(); }
+    ['btnNuevo', 'btnNuevoVacio'].forEach(function (id) { var b = document.getElementById(id); if (b) b.addEventListener('click', abrir); });
+    dlg.querySelectorAll('[data-cerrar]').forEach(function (b) { b.addEventListener('click', function () { dlg.close(); }); });
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+  })();
+</script>
+{% endblock %}

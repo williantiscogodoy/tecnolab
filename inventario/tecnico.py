@@ -4,12 +4,17 @@ from django.db import transaction
 from django.db.models import Case, Count, F, IntegerField, Q, Value, When
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.defaultfilters import floatformat
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils.timezone import localtime
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .models import Categoria, Movimiento, Producto, Reparacion
+from decimal import Decimal, InvalidOperation
+
+from .clientes import leer_monto
+from .models import CajaMovimiento, Categoria, Cliente, Movimiento, Producto, Reparacion, Venta
 from .roles import ADMIN, admin_o_tecnico, rol_de
 from .utils import url_params
 
@@ -159,15 +164,19 @@ def tecnico_producto(request, pk):
         "imagenes": p.galeria,
         "puede_retirar": (es_admin or p.categoria.es_tecnica) and p.stock > 0 and p.activo,
         "retirar_url": reverse("tecnico_retirar", args=[p.pk]),
+        # Técnico y administrador ven los dos precios y cuándo se cambió el de venta por última vez
+        "precio_compra": f"{p.precio_compra:.2f}",
+        "precio_venta": f"{p.precio_venta:.2f}",
+        "precio_venta_actualizado": (
+            localtime(p.precio_venta_actualizado).strftime("%d/%m/%Y") if p.precio_venta_actualizado else ""
+        ),
         "usa_compatibilidad": usa_compat,
         "puede_compat": usa_compat and p.activo,
         "compatibles": _lista_compatibles(p),
         "compat_buscar_url": reverse("tecnico_compat_buscar", args=[p.pk]),
         "compat_agregar_url": reverse("tecnico_compat_agregar", args=[p.pk]),
     }
-    if es_admin:  # el técnico no ve precios
-        datos["precio_compra"] = f"{p.precio_compra:.2f}"
-        datos["precio_venta"] = f"{p.precio_venta:.2f}"
+    if es_admin:
         datos["editar_url"] = reverse("producto_editar", args=[p.pk])
     return JsonResponse(datos)
 
@@ -251,7 +260,7 @@ def tecnico_compat_quitar(request, pk, otro):
 @admin_o_tecnico
 @require_POST
 def tecnico_retirar(request, pk):
-    """El técnico retira piezas del inventario (se registra como una salida)."""
+    """Retira una pieza para un cliente: sale del inventario y queda como venta (efectivo, QR o fiado)."""
     destino = request.POST.get("next", "")
     if not url_has_allowed_host_and_scheme(destino, allowed_hosts={request.get_host()}):
         destino = reverse("tecnico_panel")
@@ -260,30 +269,61 @@ def tecnico_retirar(request, pk):
         cantidad = int(request.POST.get("cantidad", ""))
     except ValueError:
         cantidad = 0
-    nota = " ".join(request.POST.get("nota", "").split())[:180]
+    nota = " ".join(request.POST.get("nota", "").split())[:150]
+    metodo = request.POST.get("metodo", "")
+    cliente_id = request.POST.get("cliente", "")
 
     if cantidad < 1:
         messages.error(request, "Indica una cantidad de al menos 1.")
         return redirect(destino)
+    if metodo not in (Venta.EFECTIVO, Venta.QR, Venta.FIADO):
+        messages.error(request, "Elige la forma de pago: efectivo, QR o fiado.")
+        return redirect(destino)
+    cliente = Cliente.objects.filter(pk=int(cliente_id), activo=True).first() if cliente_id.isdigit() else None
+    if cliente is None:
+        messages.error(request, "Elige el cliente que se lleva la pieza.")
+        return redirect(destino)
 
+    precio_texto = request.POST.get("precio", "").strip()
     with transaction.atomic():
         # Bloquea el producto para que dos retiros a la vez no dejen el stock en negativo
         producto = get_object_or_404(Producto.objects.select_for_update(), pk=pk, activo=True)
+        try:
+            precio = leer_monto(precio_texto) if precio_texto else producto.precio_venta
+        except InvalidOperation:
+            messages.error(request, "El precio no es válido.")
+            return redirect(destino)
 
         if rol_de(request.user) != ADMIN and not producto.categoria.es_tecnica:
             messages.error(request, "Solo puedes retirar productos de categorías técnicas.")
         elif cantidad > producto.stock:
             messages.error(request, f"Solo hay {producto.stock} unidad(es) de “{producto.nombre}”.")
         else:
-            Movimiento.objects.create(
-                producto=producto,
-                tipo=Movimiento.SALIDA,
-                cantidad=cantidad,
-                usuario=request.user,
-                nota=f"Retiro técnico: {nota}" if nota else "Retiro técnico",
+            etiqueta = dict(Venta.METODOS)[metodo]
+            # El dinero va a la caja según la categoría: técnica -> caja técnico; las demás -> caja productos
+            caja = CajaMovimiento.TECNICO if producto.categoria.es_tecnica else CajaMovimiento.PRODUCTOS
+            nombre_caja = dict(CajaMovimiento.CAJAS)[caja].lower()
+            movimiento = Movimiento.objects.create(
+                producto=producto, tipo=Movimiento.SALIDA, cantidad=cantidad, usuario=request.user,
+                nota=f"Venta a {cliente.nombre} ({etiqueta})" + (f": {nota}" if nota else ""),
             )
+            total = (precio * cantidad).quantize(Decimal("0.01"))
+            venta = Venta.objects.create(
+                cliente=cliente, producto=producto, producto_nombre=producto.nombre, cantidad=cantidad,
+                precio_unitario=precio, costo_unitario=producto.precio_compra, total=total, metodo=metodo,
+                caja=caja, movimiento=movimiento, usuario=request.user, nota=nota,
+            )
+            if metodo != Venta.FIADO:  # fiado no entra a caja hasta que el cliente pague
+                CajaMovimiento.objects.create(
+                    caja=caja, metodo=metodo, monto=total, origen=CajaMovimiento.VENTA,
+                    concepto=f"Venta: {cantidad} × {producto.nombre} a {cliente.nombre}"[:200],
+                    usuario=request.user, venta=venta, cliente=cliente,
+                )
+                aviso = f"Se registraron Bs {floatformat(total, '2g')} en la {nombre_caja} ({etiqueta.lower()})."
+            else:
+                aviso = f"Quedó fiado: {cliente.nombre} debe ahora Bs {floatformat(cliente.deuda, '2g')} (cuando pague irá a la {nombre_caja})."
             messages.success(
                 request,
-                f"Retiraste {cantidad} unidad(es) de “{producto.nombre}”. Quedan {producto.stock}.",
+                f"Retiraste {cantidad} × “{producto.nombre}” para {cliente.nombre}. {aviso} Quedan {producto.stock}.",
             )
     return redirect(destino)

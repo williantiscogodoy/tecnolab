@@ -193,7 +193,7 @@
     /* ---------- Resultados: abrir detalle o retirar (un solo oyente sirve aunque se redibujen) ---------- */
     document.getElementById('resultados').addEventListener('click', function (e) {
       var r = e.target.closest('.js-retirar');
-      if (r) { e.stopPropagation(); TL.producto.abrirRetiro(r.dataset.url, r.dataset.nombre, r.dataset.stock); return; }
+      if (r) { e.stopPropagation(); var tarjeta = r.closest('.card'); if (tarjeta && tarjeta.dataset.detalle) TL.producto.abrirRetiro(tarjeta.dataset.detalle); return; }
       var card = e.target.closest('.card');
       if (card && card.dataset.detalle) TL.producto.abrirDetalle(card.dataset.detalle);
     });

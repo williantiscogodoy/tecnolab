@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from .models import (
-    Categoria, Movimiento, Producto, ProductoImagen, Reparacion, ReparacionPieza,
+    Categoria, Movimiento, Producto, ProductoImagen, Reparacion, ReparacionEquipo, ReparacionPieza,
 )
 
 
@@ -32,6 +32,11 @@ class MovimientoAdmin(admin.ModelAdmin):
     list_filter = ["tipo"]
 
 
+class ReparacionEquipoInline(admin.TabularInline):
+    model = ReparacionEquipo
+    extra = 0
+
+
 class ReparacionPiezaInline(admin.TabularInline):
     model = ReparacionPieza
     extra = 0
@@ -40,7 +45,7 @@ class ReparacionPiezaInline(admin.TabularInline):
 
 @admin.register(Reparacion)
 class ReparacionAdmin(admin.ModelAdmin):
-    list_display = ["codigo", "cliente", "equipo", "estado", "tecnico", "creado"]
+    list_display = ["codigo", "cliente", "equipo", "estado", "tecnico", "cobrado", "creado"]
     list_filter = ["estado", "tecnico"]
     search_fields = ["cliente", "equipo", "telefono_cliente"]
-    inlines = [ReparacionPiezaInline]
+    inlines = [ReparacionEquipoInline, ReparacionPiezaInline]

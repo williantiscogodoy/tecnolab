@@ -1,4 +1,4 @@
-{# Lógica del cuadro de detalle del producto (técnico y administrador). Expone TL.producto.abrirDetalle(url) y TL.producto.abrirRetiro(url, nombre, stock). #}
+{# Lógica del cuadro de detalle del producto (técnico y administrador). Expone TL.producto.abrirDetalle(url) y TL.producto.abrirRetiro(url) (la url del detalle del producto). #}
 <script>
   (function () {
     window.TL = window.TL || {};
@@ -40,28 +40,143 @@
     function estadoStock(stock, minimo) { return stock === 0 ? 'out' : stock <= minimo ? 'low' : 'in'; }
     var ETIQUETA = { out: 'Agotado', low: 'Stock bajo', 'in': 'Disponible' };
 
-    /* ---------- Retirar pieza ---------- */
+    /* ---------- Retirar pieza: venta a un cliente (efectivo, QR o fiado) ---------- */
     var dlgR = $('dlgRetiro'), formR = $('formRetiro');
-    var cant = $('rCantidad'), stockR = 0;
-    function clamp(n) { n = parseInt(n, 10); if (isNaN(n) || n < 1) n = 1; return Math.min(n, stockR); }
-
-    function abrirRetiro(url, nombre, stock) {
-      stockR = parseInt(stock, 10) || 0;
-      formR.action = url;
-      $('rNext').value = location.pathname + location.search;
-      $('rNombre').textContent = nombre;
-      $('rStock').textContent = stockR;
-      cant.max = stockR; cant.value = 1;
-      $('rNota').value = '';
-      dlgR.showModal();
-      cant.select();
+    var cant = $('rCantidad'), precio = $('rPrecio'), stockR = 0, compraR = 0, ventaR = 0;
+    var cliQ = $('rClienteQ'), cliRes = $('rClienteRes'), cliErr = $('rClienteErr');
+    var timerCli = null, seqCli = 0;
+    var cajaR = 'caja productos';   // se ajusta según la categoría del producto que se retira
+    function ayudaPago(metodo) {
+      if (metodo === 'FIADO') return 'Se anota como deuda del cliente. No entra a caja hasta que pague; entonces irá a la ' + cajaR + '.';
+      return 'El dinero entra a la ' + cajaR + ', ' + (metodo === 'QR' ? 'por QR.' : 'en efectivo.');
     }
-    $('rMenos').addEventListener('click', function () { cant.value = clamp((parseInt(cant.value, 10) || 1) - 1); });
-    $('rMas').addEventListener('click', function () { cant.value = clamp((parseInt(cant.value, 10) || 0) + 1); });
-    cant.addEventListener('change', function () { cant.value = clamp(cant.value); });
+
+    function dinero(n) { return n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function clamp(n) { n = parseInt(n, 10); if (isNaN(n) || n < 1) n = 1; return Math.min(n, stockR); }
+    function metodoActual() { return formR.querySelector('input[name="metodo"]:checked').value; }
+
+    function recalcular() {
+      var n = Math.min(Math.max(parseInt(cant.value, 10) || 1, 1), Math.max(stockR, 1));
+      var p = parseFloat(precio.value);
+      var total = $('rTotal'), gan = $('rGanancia'), aviso = $('rAviso');
+      if (isNaN(p) || p < 0) { total.textContent = '—'; gan.textContent = ''; gan.className = ''; aviso.hidden = true; return; }
+      total.textContent = 'Bs ' + dinero(p * n);
+      var g = (p - compraR) * n;
+      gan.textContent = (g < 0 ? 'Pérdida Bs ' : 'Ganancia Bs ') + dinero(Math.abs(g));
+      gan.className = g < 0 ? 'neg' : 'pos';
+      aviso.hidden = !(p < compraR);
+      if (p < compraR) aviso.textContent = 'El precio está por debajo de lo que costó (Bs ' + dinero(compraR) + ' c/u).';
+    }
+    function pintarAyudaPago() { $('rMetodoAyuda').textContent = ayudaPago(metodoActual()); }
+
+    /* Cliente: buscar, elegir o crear al momento */
+    function errorCliente(texto) { cliErr.hidden = !texto; cliErr.textContent = texto || ''; }
+    function inicial(nombre) { return (nombre || '?').trim().charAt(0).toUpperCase(); }
+    function datosCliente(c) {
+      var partes = [];
+      if (c.telefono) partes.push(c.telefono);
+      return { texto: partes.join(' · '), debe: c.deuda > 0 ? 'Debe Bs ' + dinero(c.deuda) : '' };
+    }
+    function elegirCliente(c) {
+      $('rCliente').value = c.id;
+      $('rSelAv').textContent = inicial(c.nombre);
+      $('rSelNombre').textContent = c.nombre;
+      var d = datosCliente(c), small = $('rSelDatos');
+      small.textContent = [d.texto, d.debe].filter(Boolean).join(' · ') || 'Sin teléfono';
+      small.className = c.deuda > 0 ? 'debe' : '';
+      $('rClienteSel').hidden = false; $('rBuscar').hidden = true; errorCliente('');
+    }
+    function reiniciarCliente() {
+      $('rCliente').value = ''; $('rClienteSel').hidden = true; $('rBuscar').hidden = false;
+      $('rNuevo').hidden = true; cliQ.value = ''; cliRes.innerHTML = ''; errorCliente('');
+    }
+    function pintarClientes(lista) {
+      cliRes.innerHTML = '';
+      if (!lista.length) {
+        var v = el('li', 'r-vacio', 'No hay clientes con ese nombre. Puedes crear uno nuevo.');
+        cliRes.appendChild(v); return;
+      }
+      lista.forEach(function (c) {
+        var li = el('li'), b = el('button'); b.type = 'button';
+        b.appendChild(el('span', 'r-av', inicial(c.nombre)));
+        var t = el('span', 'r-txt'); t.appendChild(el('strong', null, c.nombre));
+        var d = datosCliente(c);
+        var small = el('small', c.deuda > 0 ? 'debe' : null, [d.texto, d.debe].filter(Boolean).join(' · ') || 'Sin teléfono');
+        t.appendChild(small); b.appendChild(t);
+        b.addEventListener('click', function () { elegirCliente(c); });
+        li.appendChild(b); cliRes.appendChild(li);
+      });
+    }
+    function buscarClientes() {
+      var yo = ++seqCli;
+      pedir(dlgR.dataset.buscar + '?q=' + encodeURIComponent(cliQ.value.trim()))
+        .then(function (j) { if (yo === seqCli) pintarClientes(j.resultados || []); })
+        .catch(function () { if (yo === seqCli) errorCliente('No se pudo buscar clientes. Inténtalo de nuevo.'); });
+    }
+    cliQ.addEventListener('input', function () { clearTimeout(timerCli); timerCli = setTimeout(buscarClientes, 220); });
+    cliQ.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+    $('rCambiar').addEventListener('click', function () { reiniciarCliente(); buscarClientes(); cliQ.focus(); });
+    $('rNuevoBtn').addEventListener('click', function () {
+      var abrir = $('rNuevo').hidden; $('rNuevo').hidden = !abrir;
+      if (abrir) { $('rNuevoNombre').value = cliQ.value.trim(); $('rNuevoTel').value = ''; $('rNuevoNombre').focus(); }
+    });
+    function guardarNuevoCliente() {
+      var b = $('rNuevoGuardar'); b.disabled = true;
+      enviar(dlgR.dataset.rapido, { nombre: $('rNuevoNombre').value, telefono: $('rNuevoTel').value })
+        .then(function (c) { elegirCliente(c); })
+        .catch(function (e) { errorCliente(e.message); })
+        .then(function () { b.disabled = false; });
+    }
+    $('rNuevoGuardar').addEventListener('click', guardarNuevoCliente);
+    ['rNuevoNombre', 'rNuevoTel'].forEach(function (id) {
+      $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guardarNuevoCliente(); } });
+    });
+
+    /* d: los datos del producto (la misma respuesta del cuadro de detalle) */
+    function abrirRetiro(d) {
+      stockR = parseInt(d.stock, 10) || 0;
+      compraR = parseFloat(d.precio_compra) || 0; ventaR = parseFloat(d.precio_venta) || 0;
+      formR.action = d.retirar_url;
+      cajaR = d.es_tecnica ? 'caja técnico' : 'caja productos';
+      $('rNext').value = location.pathname + location.search;
+      $('rNombre').textContent = d.nombre;
+      $('rStock').textContent = stockR;
+      $('rCompra').textContent = 'Bs ' + dinero(compraR);
+      $('rVenta').textContent = 'Bs ' + dinero(ventaR);
+      cant.max = stockR; cant.value = 1;
+      precio.value = ventaR.toFixed(2);
+      $('rNota').value = '';
+      formR.querySelector('input[name="metodo"][value="EFECTIVO"]').checked = true;
+      reiniciarCliente(); recalcular(); pintarAyudaPago();
+      $('rConfirmar').disabled = false;
+      dlgR.showModal();
+      buscarClientes(); cliQ.focus();
+    }
+    function abrirRetiroDesde(url) {
+      pedir(url).then(abrirRetiro).catch(function () { window.alert('No se pudo cargar el producto. Inténtalo de nuevo.'); });
+    }
+
+    $('rMenos').addEventListener('click', function () { cant.value = clamp((parseInt(cant.value, 10) || 1) - 1); recalcular(); });
+    $('rMas').addEventListener('click', function () { cant.value = clamp((parseInt(cant.value, 10) || 0) + 1); recalcular(); });
+    cant.addEventListener('input', recalcular);
+    cant.addEventListener('change', function () { cant.value = clamp(cant.value); recalcular(); });
+    precio.addEventListener('input', recalcular);
+    formR.querySelectorAll('input[name="metodo"]').forEach(function (r) { r.addEventListener('change', pintarAyudaPago); });
     $('rCancelar').addEventListener('click', function () { dlgR.close(); });
     dlgR.addEventListener('click', function (e) { if (e.target === dlgR) dlgR.close(); });
-    formR.addEventListener('submit', function () { cant.value = clamp(cant.value); });
+    formR.addEventListener('submit', function (e) {
+      cant.value = clamp(cant.value);
+      if (!$('rCliente').value) {
+        e.preventDefault();
+        errorCliente('Elige el cliente que se lleva la pieza.');
+        if (!$('rBuscar').hidden) cliQ.focus();
+        return;
+      }
+      if (isNaN(parseFloat(precio.value)) || parseFloat(precio.value) < 0) {
+        e.preventDefault(); precio.focus(); return;
+      }
+      setTimeout(function () { $('rConfirmar').disabled = true; }, 0);   // evita retirar dos veces
+    });
 
     /* ---------- Detalle del producto ---------- */
     var dlgP = $('dlgProd');
@@ -69,12 +184,33 @@
     var pImg = $('pImg'), pPh = $('pPh'), pPrev = $('pPrev'), pNext = $('pNext'), pCount = $('pCount'), pThumbs = $('pThumbs');
     var actual = null, actualUrl = '', pila = [];   // pila: productos por los que se pasó (para "Volver")
 
+    // Las imágenes pasan solas cada 3 segundos. Hay un botón para pausar (y no se mueven solas si la
+    // persona pidió menos movimiento en su sistema). Al elegir una imagen a mano, la cuenta empieza de nuevo.
+    var INTERVALO = 3000, timerAuto = null, pausadoPorUsuario = false;
+    var menosMovimiento = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    var pAuto = $('pAuto'), PAUSA = 'M7 5h3v14H7zM14 5h3v14h-3z', PLAY = 'M8 5v14l11-7z';
+    function detenerAuto() { clearInterval(timerAuto); timerAuto = null; }
+    function iniciarAuto() {
+      detenerAuto();
+      if (imgs.length < 2 || pausadoPorUsuario || (menosMovimiento && menosMovimiento.matches)) return;
+      timerAuto = setInterval(function () { if (dlgP.open) mostrarImagen(idx + 1); }, INTERVALO);
+    }
+    function pintarBotonAuto() {
+      pAuto.hidden = imgs.length < 2;
+      pAuto.setAttribute('aria-pressed', String(pausadoPorUsuario));
+      pAuto.setAttribute('aria-label', pausadoPorUsuario ? 'Reanudar el paso automático de imágenes' : 'Pausar el paso automático de imágenes');
+      pAuto.title = pausadoPorUsuario ? 'Reanudar' : 'Pausar';
+      pAuto.querySelector('path').setAttribute('d', pausadoPorUsuario ? PLAY : PAUSA);
+    }
+    pAuto.addEventListener('click', function () { pausadoPorUsuario = !pausadoPorUsuario; pintarBotonAuto(); iniciarAuto(); });
+
     function mostrarImagen(i) {
       idx = (i + imgs.length) % imgs.length;
       pImg.src = imgs[idx];
       pCount.textContent = (idx + 1) + ' / ' + imgs.length;
       pThumbs.querySelectorAll('button').forEach(function (b, k) { b.setAttribute('aria-current', String(k === idx)); });
     }
+    function irAImagen(i) { mostrarImagen(i); iniciarAuto(); }   // al elegir a mano, la cuenta de 3 s empieza de nuevo
     function galeria(lista, nombre) {
       imgs = lista; pThumbs.innerHTML = '';
       var hay = lista.length > 0, varias = lista.length > 1;
@@ -85,18 +221,20 @@
         lista.forEach(function (u, k) {
           var b = el('button'); b.type = 'button'; b.setAttribute('aria-label', 'Ver imagen ' + (k + 1));
           var i = el('img'); i.src = u; i.alt = ''; b.appendChild(i);
-          b.addEventListener('click', function () { mostrarImagen(k); });
+          b.addEventListener('click', function () { irAImagen(k); });
           pThumbs.appendChild(b);
         });
       }
       if (hay) mostrarImagen(0);
+      pintarBotonAuto();
+      iniciarAuto();
     }
-    pPrev.addEventListener('click', function () { mostrarImagen(idx - 1); });
-    pNext.addEventListener('click', function () { mostrarImagen(idx + 1); });
+    pPrev.addEventListener('click', function () { irAImagen(idx - 1); });
+    pNext.addEventListener('click', function () { irAImagen(idx + 1); });
     dlgP.addEventListener('keydown', function (e) {
       if (imgs.length < 2 || e.target.tagName === 'INPUT') return;
-      if (e.key === 'ArrowLeft') mostrarImagen(idx - 1);
-      if (e.key === 'ArrowRight') mostrarImagen(idx + 1);
+      if (e.key === 'ArrowLeft') irAImagen(idx - 1);
+      if (e.key === 'ArrowRight') irAImagen(idx + 1);
     });
 
     /* ---------- Productos compatibles ---------- */
@@ -248,12 +386,15 @@
           var w = el('div'); w.appendChild(el('dt', null, par[0])); w.appendChild(el('dd', null, 'Bs ' + par[1])); extra.appendChild(w);
         });
       }
+      var fecha = $('pFecha'), hayFecha = d.precio_venta !== undefined && !!d.precio_venta_actualizado;
+      fecha.hidden = !hayFecha;
+      fecha.textContent = hayFecha ? 'Precio de venta actualizado el ' + d.precio_venta_actualizado : '';
 
       var acc = $('pAcciones'); acc.innerHTML = '';
       if (d.puede_retirar) {
         var r = el('button', 'btn primary'); r.type = 'button';
         r.textContent = 'Retirar pieza';
-        r.addEventListener('click', function () { dlgP.close(); abrirRetiro(d.retirar_url, d.nombre, d.stock); });
+        r.addEventListener('click', function () { dlgP.close(); abrirRetiro(d); });
         acc.appendChild(r);
       }
       if (d.puede_compat) {
@@ -294,8 +435,8 @@
 
     $('pCerrar').addEventListener('click', function () { dlgP.close(); });
     dlgP.addEventListener('click', function (e) { if (e.target === dlgP) dlgP.close(); });
-    dlgP.addEventListener('close', function () { pila = []; actual = null; seqBuscar++; });
+    dlgP.addEventListener('close', function () { pila = []; actual = null; seqBuscar++; detenerAuto(); pausadoPorUsuario = false; });
 
-    TL.producto = { abrirDetalle: abrirDetalle, abrirRetiro: abrirRetiro };
+    TL.producto = { abrirDetalle: abrirDetalle, abrirRetiro: abrirRetiroDesde };
   })();
 </script>

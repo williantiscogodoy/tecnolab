@@ -7,13 +7,17 @@ Uso:
     python manage.py importar_pantallas ruta/al/archivo.sql --dry-run   # solo muestra lo que haría
     python manage.py importar_pantallas ruta/al/archivo.sql             # importa
     python manage.py importar_pantallas ruta/al/archivo.sql --precio-como compra
+    python manage.py importar_pantallas ruta/al/archivo.sql --stock 10 --stock-minimo 3
+    python manage.py importar_pantallas ruta/al/archivo.sql --actualizar   # pone stock a las ya importadas que quedaron en 0
 """
 import re
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from inventario.models import Categoria, Producto
 
@@ -28,6 +32,15 @@ def leer_texto(ruta):
         return datos.decode("utf-8")
     except UnicodeDecodeError:
         return datos.decode("latin-1")
+
+
+def fecha_precio(texto):
+    """'15/07/26' -> fecha con hora (None si no es una fecha válida)."""
+    try:
+        d, m, a = (int(x) for x in texto.split("/"))
+        return timezone.make_aware(datetime(a + 2000 if a < 100 else a, m, d, 12, 0))
+    except ValueError:
+        return None
 
 
 def limpiar_nombre(nombre):
@@ -46,6 +59,15 @@ class Command(BaseCommand):
             help="Dónde guardar el precio del sistema anterior (por defecto: venta)",
         )
         parser.add_argument("--categoria", default="Pantallas", help="Categoría donde se guardan")
+        parser.add_argument("--stock", type=int, default=5, help="Stock inicial de cada pantalla (por defecto: 5)")
+        parser.add_argument(
+            "--stock-minimo", type=int, default=2,
+            help="Stock mínimo para avisar 'stock bajo' (por defecto: 2, para que con 5 no salgan todas como bajas)",
+        )
+        parser.add_argument(
+            "--actualizar", action="store_true",
+            help="También pone --stock y --stock-minimo a las pantallas ya importadas que tengan stock 0",
+        )
 
     def handle(self, *args, **opts):
         if not Path(opts["sql"]).is_file():
@@ -79,10 +101,10 @@ class Command(BaseCommand):
             precio = Decimal(m.group(1).replace(",", "."))
             f = FECHA.search(precio_raw)
             desc = f"Precio del sistema anterior actualizado el {f.group(1)}." if f else ""
-            nuevos.append((final, precio, desc))
+            nuevos.append((final, precio, desc, fecha_precio(f.group(1)) if f else None))
 
         self.stdout.write(f"Filas leídas: {len(filas)} · nuevas: {len(nuevos)} · ya existían/repetidas: {omitidos} · sin precio: {len(sin_precio)}")
-        for n, p, _ in nuevos[:8]:
+        for n, p, _, _f in nuevos[:8]:
             self.stdout.write(f"   {n}  ->  Bs {p}")
 
         if opts["dry_run"]:
@@ -94,13 +116,20 @@ class Command(BaseCommand):
             cat, _ = Categoria.objects.get_or_create(nombre=opts["categoria"], defaults={"es_tecnica": True})
             Producto.objects.bulk_create([
                 Producto(
-                    nombre=n, categoria=cat, descripcion=d,
+                    nombre=n, categoria=cat, descripcion=d, precio_venta_actualizado=fecha or timezone.now(),
                     precio_venta=p if con_venta else Decimal("0"),
                     precio_compra=Decimal("0") if con_venta else p,
-                    stock=0,
+                    stock=opts["stock"], stock_minimo=opts["stock_minimo"],
                 )
-                for n, p, d in nuevos
+                for n, p, d, fecha in nuevos
             ])
-        self.stdout.write(self.style.SUCCESS(f"Listo: {len(nuevos)} pantallas importadas en la categoría «{opts['categoria']}»."))
+            actualizadas = 0
+            if opts["actualizar"]:
+                actualizadas = Producto.objects.filter(
+                    categoria=cat, nombre__startswith=f"{PREFIJO} ", stock=0,
+                ).update(stock=opts["stock"], stock_minimo=opts["stock_minimo"])
+        self.stdout.write(self.style.SUCCESS(f"Listo: {len(nuevos)} pantallas importadas en la categoría «{opts['categoria']}» con stock {opts['stock']}."))
+        if opts["actualizar"]:
+            self.stdout.write(f"Ya existentes con stock 0 actualizadas: {actualizadas}")
         if sin_precio:
             self.stdout.write(self.style.WARNING("Sin precio válido (no importadas): " + ", ".join(sin_precio)))

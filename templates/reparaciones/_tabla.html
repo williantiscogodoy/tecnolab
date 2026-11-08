@@ -9,6 +9,7 @@
         <th>Estado</th>
         <th class="hide-sm">Fecha</th>
         {% if es_admin %}<th class="hide-md">Técnico</th>{% endif %}
+        <th class="acc"><span class="visually-hidden">Acción</span></th>
       </tr>
     </thead>
     <tbody>
@@ -20,6 +21,10 @@
         <td>{% include "reparaciones/_estado.html" %}</td>
         <td class="hide-sm" style="white-space:nowrap">{{ r.creado|date:"d/m/Y" }}<span class="sub">{{ r.creado|date:"H:i" }}</span></td>
         {% if es_admin %}<td class="hide-md">{{ r.tecnico.get_username|default:"—" }}</td>{% endif %}
+        <td class="acc">
+          {% if r.cobrado_en %}<span class="cobrado-tag" title="Cobrado el {{ r.cobrado_en|date:'d/m/Y H:i' }}"><svg class="ico"><use href="#i-check"/></svg>Bs {{ r.cobrado|floatformat:"2g" }}</span>
+          {% elif r.estado != "NO_REPARABLE" %}<button type="button" class="btn-bien js-bien" data-url="{% url 'reparacion_resumen' r.pk %}" aria-label="Marcar como reparado y registrar el cobro de {{ r.cliente }}"><svg class="ico"><use href="#i-check"/></svg>Bien</button>{% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>

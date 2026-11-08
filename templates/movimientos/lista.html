@@ -2,15 +2,32 @@
 
 {% block title %}Movimientos{% endblock %}
 {% block page_title %}Movimientos{% endblock %}
-{% block page_sub %}<span class="date">Historial de entradas y salidas de inventario</span>{% endblock %}
+{% block page_sub %}<span class="date">{% if es_admin %}Historial de inventario y dinero cobrado{% else %}Tus retiros de piezas y el dinero que cobraste{% endif %}</span>{% endblock %}
 
 {% block extra_head %}
 <style>
-  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1.2rem; }
   .stat { display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.3rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
   .stat .chip { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; flex: none; }
   .stat .chip.in { color: var(--ok); background: var(--ok-bg); }
   .stat .chip.out { color: var(--danger); background: var(--danger-bg); }
+  .stat .chip.cash { color: var(--primary); background: rgba(59, 130, 246, 0.14); }
+  .stat .sub-n { display: block; color: var(--muted); font-size: 0.8rem; font-weight: 500; margin-top: 0.1rem; letter-spacing: 0; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+  .tab { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.5rem 0.95rem; border-radius: 999px; font-size: 0.88rem; font-weight: 600; color: var(--muted); border: 1px solid var(--border); transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+  .tab:hover { color: var(--text); background: var(--hover); }
+  .tab[aria-current="true"] { color: var(--primary); border-color: rgba(59, 130, 246, 0.45); background: rgba(59, 130, 246, 0.12); }
+  .tab .ico { width: 16px; height: 16px; }
+  .money-in { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .badge.comp { background: rgba(139, 92, 246, 0.16); color: #a78bfa; }
+  :root[data-theme="light"] .badge.comp { color: #6d28d9; }
+  .badge.efectivo { background: var(--ok-bg); color: var(--ok); }
+  :root[data-theme="light"] .badge.efectivo { color: #047857; }
+  .badge.qr { background: rgba(59, 130, 246, 0.16); color: var(--primary); }
+  .gan-pos { color: var(--ok); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .gan-neg { color: var(--danger); font-weight: 600; font-variant-numeric: tabular-nums; }
+  :root[data-theme="light"] .gan-pos { color: #047857; }
+  :root[data-theme="light"] .gan-neg { color: #be123c; }
   .stat small { display: block; color: var(--muted); font-size: 0.84rem; }
   .stat strong { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
   .stat .unit { color: var(--muted); font-size: 0.82rem; font-weight: 500; margin-left: 0.25rem; letter-spacing: 0; }
@@ -36,67 +53,137 @@
   .btn[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
   .empty .btn { margin-top: 0.6rem; }
 
-  @media (max-width: 520px) { .summary { grid-template-columns: minmax(0, 1fr); gap: 0.8rem; } }
+  @media (max-width: 520px) { .summary { gap: 0.8rem; } }
 </style>
 {% endblock %}
 
 {% block actions %}
+{% if es_admin %}
 <a class="btn primary" href="{% url 'movimiento_crear' %}" aria-label="Registrar movimiento">
   <svg class="ico"><use href="#i-plus"/></svg><span>Registrar movimiento</span>
 </a>
+{% endif %}
 {% endblock %}
 
 {% block content %}
+{% if vista == 'caja' %}
+<section class="summary reveal" style="--i:1" aria-label="Cajas">
+  <div class="stat">
+    <div class="chip cash"><svg class="ico"><use href="#i-wrench"/></svg></div>
+    <div><small>Caja técnico{% if hay_fechas %} (filtro){% endif %}</small><strong>Bs {{ caja_tecnico.total|floatformat:"2g" }}</strong><span class="sub-n">Efectivo Bs {{ caja_tecnico.EFECTIVO|floatformat:"2g" }} · QR Bs {{ caja_tecnico.QR|floatformat:"2g" }}</span></div>
+  </div>
+  <div class="stat">
+    <div class="chip in"><svg class="ico"><use href="#i-wallet"/></svg></div>
+    <div><small>Caja productos{% if hay_fechas %} (filtro){% endif %}</small><strong>Bs {{ caja_productos.total|floatformat:"2g" }}</strong><span class="sub-n">Efectivo Bs {{ caja_productos.EFECTIVO|floatformat:"2g" }} · QR Bs {{ caja_productos.QR|floatformat:"2g" }}</span></div>
+  </div>
+  {% if es_admin %}
+  <div class="stat">
+    <div class="chip out"><svg class="ico"><use href="#i-users"/></svg></div>
+    <div><small>Por cobrar (fiado)</small><strong>Bs {{ por_cobrar|floatformat:"2g" }}</strong><span class="sub-n">{% if n_deudores == 1 %}1 cliente con deuda{% else %}{{ n_deudores }} clientes con deuda{% endif %}</span></div>
+  </div>
+  {% endif %}
+</section>
+{% else %}
 <section class="summary reveal" style="--i:1" aria-label="Resumen del periodo filtrado">
+  {% if es_admin %}
   <div class="stat">
     <div class="chip in"><svg class="ico"><use href="#i-layers"/></svg></div>
     <div><small>Unidades que entraron{% if hay_filtros %} (filtro){% endif %}</small><strong>{{ total_entradas }}<span class="unit">u.</span></strong></div>
   </div>
+  {% endif %}
   <div class="stat">
     <div class="chip out"><svg class="ico"><use href="#i-swap"/></svg></div>
-    <div><small>Unidades que salieron{% if hay_filtros %} (filtro){% endif %}</small><strong>{{ total_salidas }}<span class="unit">u.</span></strong></div>
+    <div><small>{% if es_admin %}Unidades que salieron{% else %}Piezas que retiraste{% endif %}{% if hay_filtros %} (filtro){% endif %}</small><strong>{{ total_salidas }}<span class="unit">u.</span></strong></div>
   </div>
 </section>
+{% endif %}
 
 <section class="panel reveal" style="--i:2">
+  <nav class="tabs" aria-label="Qué ver">
+    <a class="tab" href="{{ tab_inventario }}" {% if vista == 'inventario' %}aria-current="true"{% endif %}><svg class="ico"><use href="#i-box"/></svg>Inventario</a>
+    <a class="tab" href="{{ tab_caja }}" {% if vista == 'caja' %}aria-current="true"{% endif %}><svg class="ico"><use href="#i-wallet"/></svg>Caja</a>
+  </nav>
+
   <form class="toolbar" method="get" id="filtros" role="search">
+    {% if vista == 'caja' %}<input type="hidden" name="vista" value="caja">{% endif %}
     <div class="search">
       <svg class="ico"><use href="#i-search"/></svg>
-      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Buscar por producto o SKU" aria-label="Buscar movimientos">
+      <input class="input" type="search" name="q" value="{{ q }}" placeholder="{% if vista == 'caja' %}Buscar por cliente o concepto{% else %}Buscar por producto o SKU{% endif %}" aria-label="Buscar">
     </div>
+    {% if vista == 'caja' %}
+    <select class="input" name="caja" aria-label="Filtrar por caja">
+      <option value="">Todas las cajas</option>
+      <option value="TECNICO" {% if caja_sel == 'TECNICO' %}selected{% endif %}>Caja técnico</option>
+      <option value="PRODUCTOS" {% if caja_sel == 'PRODUCTOS' %}selected{% endif %}>Caja productos</option>
+    </select>
+    <select class="input" name="metodo" aria-label="Filtrar por forma de pago">
+      <option value="">Efectivo y QR</option>
+      <option value="EFECTIVO" {% if metodo_sel == 'EFECTIVO' %}selected{% endif %}>Efectivo</option>
+      <option value="QR" {% if metodo_sel == 'QR' %}selected{% endif %}>QR</option>
+    </select>
+    {% else %}
     <select class="input" name="tipo" aria-label="Filtrar por tipo">
       <option value="">Todos los tipos</option>
       <option value="ENTRADA" {% if tipo == 'ENTRADA' %}selected{% endif %}>Entradas</option>
       <option value="SALIDA" {% if tipo == 'SALIDA' %}selected{% endif %}>Salidas</option>
     </select>
+    {% endif %}
     <div class="date-f"><label for="f_desde">Desde</label><input class="input" type="date" id="f_desde" name="desde" value="{{ desde }}"></div>
     <div class="date-f"><label for="f_hasta">Hasta</label><input class="input" type="date" id="f_hasta" name="hasta" value="{{ hasta }}"></div>
     <button class="btn keep-label" type="submit">Filtrar</button>
-    {% if hay_filtros %}<a class="link" style="align-self:center" href="{% url 'movimiento_lista' %}">Limpiar</a>{% endif %}
+    {% if hay_filtros %}<a class="link" style="align-self:center" href="{% if vista == 'caja' %}?vista=caja{% else %}{% url 'movimiento_lista' %}{% endif %}">Limpiar</a>{% endif %}
   </form>
 
   {% if page_obj %}
   <div class="table-wrap">
+    {% if vista == 'caja' %}
     <table>
       <thead>
         <tr>
-          <th>Fecha</th><th>Producto</th><th>Tipo</th><th class="num">Cantidad</th>
-          <th class="hide-md">Usuario</th><th class="hide-md">Nota</th>
+          <th>Fecha</th><th>Concepto</th><th>Caja</th><th>Pago</th><th class="num">Monto</th>
+          {% if es_admin %}<th class="hide-md">Registró</th>{% endif %}
         </tr>
       </thead>
       <tbody>
         {% for m in page_obj %}
         <tr>
           <td style="white-space:nowrap">{{ m.fecha|date:"d/m/Y" }}<span class="sub">{{ m.fecha|date:"H:i" }}</span></td>
-          <td><a class="name" href="{% url 'producto_editar' m.producto.pk %}">{{ m.producto.nombre }}</a>{% if m.producto.sku %}<span class="sub">{{ m.producto.sku }}</span>{% endif %}</td>
+          <td>
+            {% if m.reparacion_id %}<a class="name" href="{% url 'reparacion_detalle' m.reparacion_id %}">{{ m.concepto }}</a>
+            {% elif m.cliente_id and es_admin %}<a class="name" href="{% url 'cliente_detalle' m.cliente_id %}">{{ m.concepto }}</a>
+            {% else %}<span class="name">{{ m.concepto }}</span>{% endif %}
+            <span class="sub">{{ m.get_origen_display }}</span>
+          </td>
+          <td><span class="badge {% if m.caja == 'TECNICO' %}tec{% else %}comp{% endif %}">{{ m.get_caja_display }}</span></td>
+          <td><span class="badge {% if m.metodo == 'QR' %}qr{% else %}efectivo{% endif %}">{{ m.get_metodo_display }}</span></td>
+          <td class="num"><span class="money-in">Bs {{ m.monto|floatformat:"2g" }}</span></td>
+          {% if es_admin %}<td class="hide-md">{{ m.usuario.get_username|default:"—" }}</td>{% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th><th>Producto</th><th>Tipo</th><th class="num">Cantidad</th>
+          {% if es_admin %}<th class="hide-md">Usuario</th>{% endif %}<th class="hide-md">Nota</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in page_obj %}
+        <tr>
+          <td style="white-space:nowrap">{{ m.fecha|date:"d/m/Y" }}<span class="sub">{{ m.fecha|date:"H:i" }}</span></td>
+          <td>{% if es_admin %}<a class="name" href="{% url 'producto_editar' m.producto.pk %}">{{ m.producto.nombre }}</a>{% else %}<span class="name">{{ m.producto.nombre }}</span>{% endif %}{% if m.producto.sku %}<span class="sub">{{ m.producto.sku }}</span>{% endif %}</td>
           <td>{% if m.tipo == "ENTRADA" %}<span class="badge in">Entrada</span>{% else %}<span class="badge out">Salida</span>{% endif %}</td>
           <td class="num"><span class="qty {% if m.tipo == 'ENTRADA' %}in{% else %}out{% endif %}">{% if m.tipo == "ENTRADA" %}+{% else %}−{% endif %}{{ m.cantidad }}</span></td>
-          <td class="hide-md">{{ m.usuario.get_username|default:"—" }}</td>
+          {% if es_admin %}<td class="hide-md">{{ m.usuario.get_username|default:"—" }}</td>{% endif %}
           <td class="hide-md nota" title="{{ m.nota }}">{{ m.nota|default:"—" }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% endif %}
   </div>
 
   <div class="pager">
@@ -111,15 +198,31 @@
 
   {% else %}
   <div class="empty static">
+    {% if vista == 'caja' %}
+    <svg class="ico"><use href="#i-wallet"/></svg>
+    {% if hay_filtros %}
+      <strong>No hay cobros con esos filtros</strong>
+      Prueba con otro rango de fechas o quita los filtros.
+      <a class="btn keep-label" href="?vista=caja">Limpiar filtros</a>
+    {% else %}
+      <strong>Aún no hay dinero en las cajas</strong>
+      Aparecerá aquí cuando marques una reparación con “Bien” o retires una pieza pagada en efectivo o QR.
+      <a class="btn primary keep-label" href="{% url 'reparacion_lista' %}">Ir a reparaciones</a>
+    {% endif %}
+    {% else %}
     <svg class="ico"><use href="#i-swap"/></svg>
     {% if hay_filtros %}
       <strong>No hay movimientos con esos filtros</strong>
       Prueba con otro rango de fechas o quita los filtros.
       <a class="btn keep-label" href="{% url 'movimiento_lista' %}">Limpiar filtros</a>
-    {% else %}
+    {% elif es_admin %}
       <strong>Aún no hay movimientos</strong>
       Registra tu primera entrada o salida de inventario.
       <a class="btn primary keep-label" href="{% url 'movimiento_crear' %}"><svg class="ico"><use href="#i-plus"/></svg><span>Registrar movimiento</span></a>
+    {% else %}
+      <strong>Aún no tienes movimientos</strong>
+      Aquí aparecerán las piezas que retires o uses en reparaciones.
+    {% endif %}
     {% endif %}
   </div>
   {% endif %}

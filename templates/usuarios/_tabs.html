@@ -1,0 +1,4 @@
+<nav class="tabs" aria-label="Tipo de usuario">
+  <a class="tab" href="{% url 'clientes_lista' %}" {% if tab == 'clientes' %}aria-current="true"{% endif %}><svg class="ico"><use href="#i-users"/></svg>Clientes</a>
+  <a class="tab" href="{% url 'personal_lista' %}" {% if tab == 'personal' %}aria-current="true"{% endif %}><svg class="ico"><use href="#i-wrench"/></svg>Personal</a>
+</nav>

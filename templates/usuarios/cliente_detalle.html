@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}{{ cliente.nombre }}{% endblock %}
+{% block page_title %}{{ cliente.nombre }}{% endblock %}
+{% block page_sub %}<span class="date">{{ cliente.telefono|default:"Sin teléfono" }}{% if not cliente.activo %} · Inactivo{% endif %}</span>{% endblock %}
+
+{% block extra_head %}
+{% include "usuarios/_estilos.html" %}
+<style>
+  .back { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--primary); font-weight: 600; font-size: 0.88rem; margin-bottom: 1rem; }
+  .back .ico { width: 16px; height: 16px; }
+  .layout { display: grid; gap: 1.2rem; }
+  .pagar { display: grid; gap: 1rem; }
+  .pagar .fila { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+  .pagar .btns { display: flex; gap: 0.7rem; flex-wrap: wrap; justify-content: flex-end; }
+  .deuda-box { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: 0.9rem 1.1rem; border-radius: 12px; background: var(--danger-bg); color: var(--danger); font-weight: 600; }
+  .deuda-box strong { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+  :root[data-theme="light"] .deuda-box { color: #be123c; }
+  .badge.comp { background: rgba(139, 92, 246, 0.16); color: #a78bfa; }
+  :root[data-theme="light"] .badge.comp { color: #6d28d9; }
+  .nota-cliente { color: var(--muted); font-size: 0.9rem; white-space: pre-line; margin-top: 0.4rem; }
+  @media (max-width: 560px) { .pagar .fila { grid-template-columns: minmax(0, 1fr); } }
+</style>
+{% endblock %}
+
+{% block actions %}
+<button class="btn" type="button" id="btnEditar" aria-label="Editar cliente">
+  <svg class="ico"><use href="#i-edit"/></svg><span>Editar</span>
+</button>
+{% endblock %}
+
+{% block content %}
+<a class="back" href="{% url 'clientes_lista' %}"><svg class="ico"><use href="#i-arrow-left"/></svg>Volver a usuarios</a>
+{% if cliente.notas %}<p class="nota-cliente" style="margin:-0.4rem 0 1rem">{{ cliente.notas }}</p>{% endif %}
+
+<div class="layout">
+  <section class="summary reveal" style="--i:1" aria-label="Resumen del cliente">
+    <div class="stat">
+      <div class="chip cash"><svg class="ico"><use href="#i-box"/></svg></div>
+      <div><small>Total comprado</small><strong>Bs {{ total_comprado|floatformat:"2g" }}</strong><span class="sub-n">{% if n_compras == 1 %}1 compra{% else %}{{ n_compras }} compras{% endif %}</span></div>
+    </div>
+    <div class="stat">
+      <div class="chip in"><svg class="ico"><use href="#i-check"/></svg></div>
+      <div><small>Ya pagó</small><strong>Bs {{ pagado_total|floatformat:"2g" }}</strong></div>
+    </div>
+    <div class="stat">
+      <div class="chip out"><svg class="ico"><use href="#i-wallet"/></svg></div>
+      <div><small>Debe</small><strong class="{% if deuda > 0 %}debe{% endif %}">Bs {{ deuda|floatformat:"2g" }}</strong>{% if deuda <= 0 %}<span class="sub-n">Está al día</span>{% endif %}</div>
+    </div>
+  </section>
+
+  {% if deuda > 0 %}
+  <section class="panel reveal" style="--i:2">
+    <div class="panel-head"><div><h2>Cobrar deuda</h2><p>Puede pagar todo junto o poco a poco. El dinero va a la caja técnico o a la de productos, según lo que se llevó.</p></div></div>
+    <form method="post" action="{% url 'cliente_pagar' cliente.pk %}" class="pagar" id="formPago" novalidate>
+      {% csrf_token %}
+      <div class="deuda-box"><span>Debe actualmente</span><strong>Bs {{ deuda|floatformat:"2g" }}</strong></div>
+      <div class="fila">
+        <div class="field">
+          <label for="pMonto">Cuánto paga ahora</label>
+          <div class="input-affix"><span>Bs</span><input class="input" type="number" name="monto" id="pMonto" min="0.01" max="{{ deuda|stringformat:'.2f' }}" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          <span class="hint" id="pResta"></span>
+        </div>
+        <div class="field">
+          <label>Forma de pago</label>
+          <div class="seg" role="radiogroup" aria-label="Forma de pago">
+            <label><input type="radio" name="metodo" value="EFECTIVO" checked>Efectivo</label>
+            <label><input type="radio" name="metodo" value="QR">QR</label>
+          </div>
+        </div>
+      </div>
+      <div class="field"><label for="pNota">Nota (opcional)</label><input class="input" type="text" name="nota" id="pNota" maxlength="120" placeholder="Ej. Pagó la mitad de la semana" autocomplete="off"></div>
+      <div class="btns">
+        <button class="btn keep-label" type="submit" name="todo" value="1" formnovalidate><svg class="ico"><use href="#i-check"/></svg><span>Pagar todo (Bs {{ deuda|floatformat:"2g" }})</span></button>
+        <button class="btn primary keep-label" type="submit" id="btnPago"><span>Registrar pago</span></button>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="panel reveal" style="--i:3">
+    <div class="panel-head"><div><h2>Lo que compró</h2><p>Cada pieza, a qué precio y cómo se pagó</p></div></div>
+    {% if filas %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Fecha</th><th>Producto</th><th class="num hide-sm">Precio</th><th class="num">Total</th><th>Pago</th><th>Estado</th></tr>
+        </thead>
+        <tbody>
+          {% for f in filas %}
+          {% with v=f.venta %}
+          <tr>
+            <td style="white-space:nowrap">{{ v.fecha|date:"d/m/Y" }}<span class="sub">{{ v.fecha|date:"H:i" }}</span></td>
+            <td><span class="name">{{ v.cantidad }} × {{ v.producto_nombre }}</span>{% if v.nota %}<span class="sub">{{ v.nota }}</span>{% endif %}</td>
+            <td class="num hide-sm money">Bs {{ v.precio_unitario|floatformat:"2g" }}</td>
+            <td class="num money">Bs {{ v.total|floatformat:"2g" }}</td>
+            <td><span class="badge {% if v.metodo == 'EFECTIVO' %}efectivo{% elif v.metodo == 'QR' %}qr{% else %}fiado{% endif %}">{{ v.get_metodo_display }}</span></td>
+            <td>
+              {% if f.estado == "pagado" %}<span class="badge in">Pagado</span>
+              {% elif f.estado == "parcial" %}<span class="badge parcial">Resta Bs {{ f.saldo|floatformat:"2g" }}</span>
+              {% else %}<span class="badge out">Debe Bs {{ f.saldo|floatformat:"2g" }}</span>{% endif %}
+            </td>
+          </tr>
+          {% endwith %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty static" style="min-height:140px"><svg class="ico"><use href="#i-box"/></svg><strong>Todavía no compró nada</strong>Sus compras aparecerán aquí cuando se le retire una pieza.</div>
+    {% endif %}
+  </section>
+
+  {% if pagos %}
+  <section class="panel reveal" style="--i:4">
+    <div class="panel-head"><div><h2>Pagos de deuda</h2><p>Dinero que fue entregando por lo fiado</p></div></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Fecha</th><th class="num">Monto</th><th>Pago</th><th class="hide-sm">Caja</th><th class="hide-sm">Recibió</th></tr></thead>
+        <tbody>
+          {% for p in pagos %}
+          <tr>
+            <td style="white-space:nowrap">{{ p.fecha|date:"d/m/Y" }}<span class="sub">{{ p.fecha|date:"H:i" }}</span></td>
+            <td class="num money"><strong>Bs {{ p.monto|floatformat:"2g" }}</strong></td>
+            <td><span class="badge {% if p.metodo == 'QR' %}qr{% else %}efectivo{% endif %}">{{ p.get_metodo_display }}</span></td>
+            <td class="hide-sm"><span class="badge {% if p.caja == 'TECNICO' %}tec{% else %}comp{% endif %}">{{ p.get_caja_display }}</span></td>
+            <td class="hide-sm">{{ p.usuario.get_username|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>
+
+<dialog id="dlgCliente" aria-labelledby="dlgClienteTitulo">
+  <form method="post" class="dlg" action="{% url 'cliente_editar' cliente.pk %}" novalidate>
+    {% csrf_token %}
+    <h2 id="dlgClienteTitulo">Editar cliente</h2>
+    <div class="field"><label for="cNombre">Nombre</label><input class="input" type="text" name="nombre" id="cNombre" maxlength="120" required value="{{ cliente.nombre }}" autocomplete="off"></div>
+    <div class="field"><label for="cTel">Teléfono (opcional)</label><input class="input" type="tel" name="telefono" id="cTel" maxlength="30" value="{{ cliente.telefono }}" inputmode="tel" autocomplete="off"></div>
+    <div class="field"><label for="cNotas">Notas (opcional)</label><textarea class="input" name="notas" id="cNotas" rows="2">{{ cliente.notas }}</textarea></div>
+    <label class="switch" style="margin-top:1.2rem">
+      <span><strong>Cliente activo</strong><small>Los inactivos no aparecen al retirar piezas. No se puede desactivar con deuda.</small></span>
+      <span class="sw"><input type="checkbox" name="activo" {% if cliente.activo %}checked{% endif %}><i class="track"></i></span>
+    </label>
+    <div class="btns">
+      <button class="btn keep-label" type="button" data-cerrar>Cancelar</button>
+      <button class="btn primary keep-label" type="submit"><span>Guardar</span></button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var dlg = document.getElementById('dlgCliente');
+    document.getElementById('btnEditar').addEventListener('click', function () { dlg.showModal(); });
+    dlg.querySelectorAll('[data-cerrar]').forEach(function (b) { b.addEventListener('click', function () { dlg.close(); }); });
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+
+    // Cuánto le quedaría debiendo después del pago
+    var monto = document.getElementById('pMonto'), resta = document.getElementById('pResta');
+    var deuda = parseFloat("{{ deuda|stringformat:'.2f' }}");
+    function fmt(n) { return n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    if (monto) monto.addEventListener('input', function () {
+      var m = parseFloat(monto.value);
+      resta.textContent = isNaN(m) ? '' : (m > deuda ? 'No puede ser más de lo que debe.' : 'Quedaría debiendo Bs ' + fmt(deuda - m) + '.');
+    });
+  })();
+</script>
+{% endblock %}

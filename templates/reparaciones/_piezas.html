@@ -33,6 +33,20 @@
       return c.length === 1 ? c[0] : null;
     }
 
+    // Inversión aproximada = precio de compra × cantidad de cada pieza elegida
+    function notificar() {
+      var costo = 0, detalle = [];
+      Array.prototype.forEach.call(cont.children, function (d) {
+        var p = porId[d.children[0].value];
+        if (!p) return;
+        var n = Math.max(parseInt(d.children[2].value, 10) || 1, 1);
+        costo += p.costo * n;
+        detalle.push({ nombre: p.nombre, cantidad: n, costo: p.costo * n });
+      });
+      window.TLPiezas = { costo: costo, detalle: detalle };
+      document.dispatchEvent(new CustomEvent('piezas-cambio', { detail: window.TLPiezas }));
+    }
+
     function fila(datos) {
       var d = document.createElement('div');
       d.className = 'fila';
@@ -48,6 +62,7 @@
         if (p) { texto.value = p.label; cant.max = p.stock; if (+cant.value > p.stock) cant.value = p.stock; }
         else { cant.removeAttribute('max'); }
         texto.classList.remove('invalida');
+        notificar();
       }
       texto.addEventListener('input', function () { fijar(porLabel[texto.value.trim().toLowerCase()] || null); });
       texto.addEventListener('change', function () { var p = buscar(texto.value); if (p) fijar(p); });
@@ -55,10 +70,13 @@
         var n = parseInt(cant.value, 10); if (isNaN(n) || n < 1) n = 1;
         var p = porId[id.value]; if (p && n > p.stock) n = p.stock;
         cant.value = n;
+        notificar();
       });
+      cant.addEventListener('input', notificar);
       quitar.addEventListener('click', function () {
         d.remove();
         if (!cont.children.length) cont.appendChild(fila());
+        notificar();
       });
 
       if (datos) {
@@ -71,6 +89,7 @@
     }
 
     (iniciales.length ? iniciales : [null]).forEach(function (f) { cont.appendChild(fila(f)); });
+    notificar();
     btn.addEventListener('click', function () { var f = fila(); cont.appendChild(f); f.children[1].focus(); });
 
     // No dejar enviar piezas escritas a medias

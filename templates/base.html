@@ -265,6 +265,7 @@
       <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
       <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
       <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
       <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></symbol>
       <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
       <symbol id="i-chev-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
@@ -284,6 +285,7 @@
       {% if not request.user.is_staff %}
       <a href="{% url 'tecnico_panel' %}" {% if url|slice:':7' == 'tecnico' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-wrench"/></svg>Panel técnico</a>
       <a href="{% url 'reparacion_lista' %}" {% if url|slice:':10' == 'reparacion' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-phone"/></svg>Reparaciones</a>
+      <a href="{% url 'movimiento_lista' %}" {% if url|slice:':10' == 'movimiento' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-swap"/></svg>Movimientos</a>
       {% else %}
       <a href="{% url 'dashboard' %}" {% if url == 'dashboard' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-grid"/></svg>Panel general</a>
       <a href="{% url 'producto_lista' %}" {% if url|slice:':8' == 'producto' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-box"/></svg>Productos</a>
@@ -291,6 +293,7 @@
       <a href="{% url 'movimiento_lista' %}" {% if url|slice:':10' == 'movimiento' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-swap"/></svg>Movimientos</a>
       <a href="{% url 'tecnico_panel' %}" {% if url|slice:':7' == 'tecnico' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-wrench"/></svg>Panel técnico</a>
       <a href="{% url 'reparacion_lista' %}" {% if url|slice:':10' == 'reparacion' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-phone"/></svg>Reparaciones</a>
+      <a href="{% url 'clientes_lista' %}" {% if url|slice:':7' == 'cliente' or url|slice:':8' == 'personal' %}aria-current="page"{% endif %}><svg class="ico"><use href="#i-users"/></svg>Usuarios</a>
       <hr>
       <a href="/admin/"><svg class="ico"><use href="#i-sliders"/></svg>Administración</a>
       {% endif %}

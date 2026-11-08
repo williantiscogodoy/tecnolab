@@ -2,7 +2,7 @@
 
 {% block title %}Nueva reparación{% endblock %}
 {% block page_title %}Nueva reparación{% endblock %}
-{% block page_sub %}<span class="date">Registra el equipo que dejó el cliente</span>{% endblock %}
+{% block page_sub %}<span class="date">Registra los teléfonos que dejó el cliente</span>{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -16,6 +16,30 @@
   .note { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.83rem; color: var(--muted); line-height: 1.45; margin-bottom: 0.9rem; }
   .note .ico { width: 17px; height: 17px; margin-top: 1px; color: var(--primary); }
   .form-actions { display: flex; justify-content: flex-end; gap: 0.7rem; }
+
+  /* Teléfonos que dejó el cliente */
+  .equipos { display: grid; gap: 0.8rem; }
+  .equipo { display: grid; gap: 0.7rem; padding: 1rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
+  .equipo-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-height: 32px; }
+  .equipo-head strong { font-size: 0.92rem; }
+  .equipo .input { background: var(--surface); }
+  .equipo .input.invalida { border-color: var(--danger); }
+  .equipo .quitar { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; border: 1px solid var(--border); background: transparent; color: var(--muted); }
+  .equipo .quitar:hover { color: var(--danger); background: var(--danger-bg); border-color: transparent; }
+  .equipo .quitar[hidden] { display: none; }
+  .equipo textarea.input { min-height: 72px; }
+
+  /* Cobro, inversión y ganancia */
+  .read { padding: 0.72rem 0.9rem; border-radius: 12px; background: var(--surface-2); border: 1.5px solid var(--border); font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .margin { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.8rem 1rem; margin-top: 1rem; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font-size: 0.88rem; color: var(--muted); }
+  .margin strong { font-variant-numeric: tabular-nums; color: var(--text); }
+  .margin .pos { color: var(--ok); }
+  .margin .neg { color: var(--danger); }
+  :root[data-theme="light"] .margin .pos { color: #047857; }
+  :root[data-theme="light"] .margin .neg { color: #be123c; }
+  .desglose { list-style: none; margin: 0.8rem 0 0; padding: 0; display: grid; gap: 0.3rem; font-size: 0.84rem; color: var(--muted); }
+  .desglose li { display: flex; justify-content: space-between; gap: 1rem; }
+  .desglose span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
   @media (max-width: 560px) { .fields.two { grid-template-columns: minmax(0, 1fr); } .form-actions .btn { flex: 1; } }
 </style>
 {% endblock %}
@@ -31,20 +55,19 @@
   {% endif %}
 
   <section class="panel reveal" style="--i:1">
-    <div class="panel-head"><div><h2>Cliente y equipo</h2><p>Para saber de quién es cada trabajo</p></div></div>
-    <div class="fields">
+    <div class="panel-head"><div><h2>Cliente</h2><p>Para saber de quién es cada trabajo</p></div></div>
+    <div class="fields two">
       {% include "productos/_campo.html" with field=form.cliente %}
-      <div class="fields two">
-        {% include "productos/_campo.html" with field=form.equipo %}
-        {% include "productos/_campo.html" with field=form.telefono_cliente %}
-      </div>
+      {% include "productos/_campo.html" with field=form.telefono_cliente %}
     </div>
   </section>
 
   <section class="panel reveal" style="--i:2">
-    <div class="panel-head"><div><h2>Arreglo</h2><p>Qué se va a hacer</p></div></div>
-    <div class="fields">
-      {% include "productos/_campo.html" with field=form.trabajo %}
+    <div class="panel-head"><div><h2>Teléfonos que dejó</h2><p>Puede dejar uno o varios, cada uno con su falla</p></div></div>
+    <div class="equipos" id="equipos"></div>
+    <span class="err" id="equiposError" role="alert" style="color:var(--danger);font-size:.84rem;display:block;margin-top:.5rem" hidden></span>
+    <button type="button" class="btn keep-label" id="btnEquipo" style="margin-top:.8rem"><svg class="ico"><use href="#i-plus"/></svg><span>Agregar otro teléfono</span></button>
+    <div class="fields" style="margin-top:1.2rem">
       {% include "productos/_campo.html" with field=form.notas %}
     </div>
   </section>
@@ -55,9 +78,111 @@
     {% include "reparaciones/_piezas.html" %}
   </section>
 
-  <div class="form-actions reveal" style="--i:4">
+  <section class="panel reveal" style="--i:4">
+    <div class="panel-head"><div><h2>Cobro y ganancia</h2><p>Para saber cuánto te queda de este trabajo</p></div></div>
+    <div class="fields two">
+      {% include "productos/_campo.html" with field=form.cobro prefix="Bs" %}
+      <div class="field">
+        <label>Inversión aproximada en piezas</label>
+        <div class="read" id="inversion">Bs 0,00</div>
+        <span class="hint">Es el precio de compra de las piezas que elegiste.</span>
+      </div>
+    </div>
+    <ul class="desglose" id="desglose" aria-label="Piezas elegidas"></ul>
+    <div class="margin" id="ganancia" aria-live="polite"><span>Ganancia del arreglo</span><strong id="gananciaValor">—</strong></div>
+  </section>
+
+  <div class="form-actions reveal" style="--i:5">
     <a class="btn keep-label" href="{% url 'reparacion_lista' %}">Cancelar</a>
     <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>Registrar reparación</span></button>
   </div>
 </form>
+{% endblock %}
+
+{% block extra_js %}
+{{ filas_equipos|json_script:"equipos-json" }}
+<script>
+  (function () {
+    /* ---------- Teléfonos: uno o varios, cada uno con su falla ---------- */
+    var cont = document.getElementById('equipos'), btn = document.getElementById('btnEquipo');
+    var err = document.getElementById('equiposError'), form = cont.closest('form');
+    var iniciales = JSON.parse(document.getElementById('equipos-json').textContent);
+
+    function numerar() {
+      var filas = cont.children;
+      Array.prototype.forEach.call(filas, function (d, k) {
+        d.querySelector('strong').textContent = 'Teléfono ' + (k + 1);
+        d.querySelector('.quitar').hidden = filas.length === 1;
+      });
+    }
+    function equipo(datos) {
+      var d = document.createElement('div');
+      d.className = 'equipo';
+      d.innerHTML =
+        '<div class="equipo-head"><strong></strong><button type="button" class="quitar" aria-label="Quitar este teléfono"><svg class="ico" style="width:16px;height:16px"><use href="#i-x"/></svg></button></div>' +
+        '<div class="field"><label>Modelo</label><input class="input" type="text" name="equipo_modelo" maxlength="120" placeholder="Ej. Samsung Galaxy A12, iPhone 11…" autocomplete="off"></div>' +
+        '<div class="field"><label>Falla</label><textarea class="input" name="equipo_falla" rows="2" placeholder="Ej. No carga, revisar puerto y limpiar"></textarea></div>';
+      var modelo = d.querySelector('input'), falla = d.querySelector('textarea');
+      var idm = 'eq' + Math.random().toString(36).slice(2, 8);
+      d.querySelectorAll('label')[0].setAttribute('for', idm + 'm'); modelo.id = idm + 'm';
+      d.querySelectorAll('label')[1].setAttribute('for', idm + 'f'); falla.id = idm + 'f';
+      modelo.addEventListener('input', function () { modelo.classList.remove('invalida'); });
+      d.querySelector('.quitar').addEventListener('click', function () { d.remove(); numerar(); });
+      if (datos) { modelo.value = datos.modelo || ''; falla.value = datos.falla || ''; }
+      return d;
+    }
+    (iniciales.length ? iniciales : [null]).forEach(function (e) { cont.appendChild(equipo(e)); });
+    numerar();
+    btn.addEventListener('click', function () {
+      var e = equipo(); cont.appendChild(e); numerar();
+      e.querySelector('input').focus();
+      e.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+
+    // Cada teléfono necesita su modelo (si escribieron la falla pero no el modelo, se avisa)
+    form.addEventListener('submit', function (e) {
+      err.hidden = true;
+      var mala = null, hay = false;
+      Array.prototype.forEach.call(cont.children, function (d) {
+        var m = d.querySelector('input'), f = d.querySelector('textarea');
+        if (m.value.trim()) { hay = true; }
+        else if (f.value.trim()) { m.classList.add('invalida'); mala = mala || m; }
+      });
+      if (mala || !hay) {
+        e.preventDefault();
+        err.textContent = mala ? 'Escribe el modelo de cada teléfono que dejó el cliente.' : 'Anota al menos un teléfono que dejó el cliente.';
+        err.hidden = false;
+        (mala || cont.querySelector('input')).focus();
+      }
+    });
+
+    /* ---------- Cobro, inversión y ganancia ---------- */
+    var cobro = document.getElementById('{{ form.cobro.id_for_label }}');
+    var inv = document.getElementById('inversion'), des = document.getElementById('desglose');
+    var val = document.getElementById('gananciaValor');
+    function fmt(n) { return n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+    function pintar() {
+      var est = window.TLPiezas || { costo: 0, detalle: [] };
+      inv.textContent = 'Bs ' + fmt(est.costo);
+      des.innerHTML = '';
+      est.detalle.forEach(function (it) {
+        var li = document.createElement('li');
+        var a = document.createElement('span'); a.textContent = it.cantidad + ' × ' + it.nombre;
+        var b = document.createElement('span'); b.textContent = 'Bs ' + fmt(it.costo);
+        li.appendChild(a); li.appendChild(b); des.appendChild(li);
+      });
+      var c = parseFloat(cobro.value);
+      if (isNaN(c)) { val.textContent = 'Escribe cuánto vas a cobrar'; val.className = ''; return; }
+      var g = c - est.costo;
+      var txt = (g < 0 ? '−' : '') + 'Bs ' + fmt(Math.abs(g));
+      if (c > 0) txt += ' · ' + (g < 0 ? '−' : '') + fmt(Math.abs(g / c * 100)) + ' %';
+      val.textContent = txt;
+      val.className = g >= 0 ? 'pos' : 'neg';
+    }
+    document.addEventListener('piezas-cambio', pintar);
+    cobro.addEventListener('input', pintar);
+    pintar();
+  })();
+</script>
 {% endblock %}

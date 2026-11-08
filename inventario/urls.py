@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import reparaciones, tecnico, views
+from . import clientes, personal, reparaciones, tecnico, views
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -41,6 +41,21 @@ urlpatterns = [
     path("reparaciones/<int:pk>/", reparaciones.reparacion_detalle, name="reparacion_detalle"),
     path("reparaciones/<int:pk>/actualizar/", reparaciones.reparacion_actualizar, name="reparacion_actualizar"),
     path("reparaciones/<int:pk>/pieza/", reparaciones.reparacion_pieza, name="reparacion_pieza"),
+    path("reparaciones/<int:pk>/resumen/", reparaciones.reparacion_resumen, name="reparacion_resumen"),
+    path("reparaciones/<int:pk>/cobrar/", reparaciones.reparacion_cobrar, name="reparacion_cobrar"),
+
+    # Clientes (quienes compran piezas) y personal
+    path("clientes/buscar/", clientes.clientes_buscar, name="clientes_buscar"),
+    path("clientes/rapido/", clientes.clientes_rapido, name="clientes_rapido"),
+    path("usuarios/", clientes.clientes_lista, name="clientes_lista"),
+    path("usuarios/clientes/guardar/", clientes.cliente_guardar, name="cliente_crear"),
+    path("usuarios/clientes/<int:pk>/", clientes.cliente_detalle, name="cliente_detalle"),
+    path("usuarios/clientes/<int:pk>/guardar/", clientes.cliente_guardar, name="cliente_editar"),
+    path("usuarios/clientes/<int:pk>/pagar/", clientes.cliente_pagar, name="cliente_pagar"),
+    path("usuarios/personal/", personal.personal_lista, name="personal_lista"),
+    path("usuarios/personal/crear/", personal.personal_crear, name="personal_crear"),
+    path("usuarios/personal/<int:pk>/estado/", personal.personal_estado, name="personal_estado"),
+    path("usuarios/personal/<int:pk>/clave/", personal.personal_clave, name="personal_clave"),
 
     # Movimientos
     path("movimientos/", views.movimiento_lista, name="movimiento_lista"),

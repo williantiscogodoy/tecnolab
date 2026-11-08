@@ -172,25 +172,25 @@ class MovimientoForm(forms.ModelForm):
 
 # ============================== Reparaciones ==============================
 class ReparacionForm(forms.ModelForm):
+    """Datos del cliente y el cobro. Los teléfonos (con su falla) y las piezas llegan en filas aparte."""
+    cobro = forms.DecimalField(
+        label="Cuánto vas a cobrar (opcional)", required=False, min_value=0, max_digits=10, decimal_places=2,
+        error_messages={"min_value": "El cobro no puede ser negativo.", "invalid": "Escribe un monto válido."},
+        widget=forms.NumberInput(attrs={"class": "input", "step": "0.01", "min": "0", "placeholder": "0.00", "inputmode": "decimal"}),
+    )
+
     class Meta:
         model = Reparacion
-        fields = ["cliente", "telefono_cliente", "equipo", "trabajo", "notas"]
+        fields = ["cliente", "telefono_cliente", "cobro", "notas"]
         labels = {
             "cliente": "Nombre del cliente",
             "telefono_cliente": "Teléfono de contacto (opcional)",
-            "equipo": "Equipo que dejó",
-            "trabajo": "Arreglo a realizar",
             "notas": "Notas (opcional)",
-        }
-        help_texts = {
-            "trabajo": "Describe el arreglo. Si solo vas a cambiar una pieza, puedes dejarlo vacío y elegirla abajo.",
         }
         widgets = {
             "cliente": forms.TextInput(attrs={"class": "input", "placeholder": "Ej. Juan Pérez", "autocomplete": "off", "autofocus": True}),
             "telefono_cliente": forms.TextInput(attrs={"class": "input", "type": "tel", "placeholder": "Ej. 70012345", "inputmode": "tel"}),
-            "equipo": forms.TextInput(attrs={"class": "input", "placeholder": "Ej. Samsung Galaxy A12, iPhone 11…"}),
-            "trabajo": forms.Textarea(attrs={"class": "input", "rows": 3, "placeholder": "Ej. No carga, revisar puerto y limpiar"}),
-            "notas": forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Estado del equipo al recibirlo, accesorios que dejó…"}),
+            "notas": forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Estado de los equipos al recibirlos, accesorios que dejó…"}),
         }
 
     def clean_cliente(self):
@@ -198,9 +198,15 @@ class ReparacionForm(forms.ModelForm):
 
 
 class ReparacionEstadoForm(forms.ModelForm):
+    cobro = forms.DecimalField(
+        label="Cobro al cliente", required=False, min_value=0, max_digits=10, decimal_places=2,
+        error_messages={"min_value": "El cobro no puede ser negativo.", "invalid": "Escribe un monto válido."},
+        widget=forms.NumberInput(attrs={"class": "input", "step": "0.01", "min": "0", "placeholder": "0.00", "inputmode": "decimal"}),
+    )
+
     class Meta:
         model = Reparacion
-        fields = ["estado", "notas"]
+        fields = ["estado", "cobro", "notas"]
         widgets = {
             "estado": forms.Select(attrs={"class": "input"}),
             "notas": forms.Textarea(attrs={"class": "input", "rows": 3, "placeholder": "Avances, observaciones, a quién se entregó…"}),

@@ -3,13 +3,14 @@
   <div class="pd">
     <button class="pd-close" type="button" id="pCerrar" aria-label="Cerrar"><svg class="ico" style="width:18px;height:18px"><use href="#i-x"/></svg></button>
 
-    <div>
+    <div id="pGaleria">
       <div class="pd-main">
         <img id="pImg" alt="" hidden>
         <svg class="ico" id="pPh" style="width:44px;height:44px"><use href="#i-image"/></svg>
         <button class="pd-nav prev" type="button" id="pPrev" aria-label="Imagen anterior" hidden><svg class="ico"><use href="#i-chev-left"/></svg></button>
         <button class="pd-nav next" type="button" id="pNext" aria-label="Imagen siguiente" hidden><svg class="ico"><use href="#i-chev-right"/></svg></button>
         <span class="pd-count" id="pCount" hidden></span>
+        <button class="pd-auto" type="button" id="pAuto" aria-pressed="false" aria-label="Pausar el paso automático de imágenes" title="Pausar" hidden><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M7 5h3v14H7zM14 5h3v14h-3z" fill="currentColor"/></svg></button>
       </div>
       <div class="pd-thumbs" id="pThumbs"></div>
     </div>
@@ -26,6 +27,7 @@
       </div>
       <p class="pd-desc" id="pDesc"></p>
       <dl class="pd-extra" id="pExtra" hidden></dl>
+      <p class="pd-fecha" id="pFecha" hidden></p>
       <div class="pd-actions" id="pAcciones"></div>
     </div>
 
@@ -46,30 +48,77 @@
   </div>
 </dialog>
 
-<!-- Retirar pieza -->
-<dialog id="dlgRetiro" aria-labelledby="dlgTitulo">
-  <form method="post" class="dlg" id="formRetiro">
+<!-- Retirar pieza: sale del inventario y queda como venta a un cliente -->
+<dialog id="dlgRetiro" aria-labelledby="dlgTitulo" data-buscar="{% url 'clientes_buscar' %}" data-rapido="{% url 'clientes_rapido' %}">
+  <form method="post" class="dlg" id="formRetiro" novalidate>
     {% csrf_token %}
     <input type="hidden" name="next" id="rNext" value="">
+    <input type="hidden" name="cliente" id="rCliente" value="">
     <div>
       <h2 id="dlgTitulo">Retirar pieza</h2>
       <p class="who"><strong id="rNombre"></strong> · <span id="rStock"></span> disponible(s)</p>
     </div>
-    <div class="field">
-      <label for="rCantidad">Cantidad</label>
-      <div class="stepper">
-        <button type="button" id="rMenos" aria-label="Quitar una unidad"><svg class="ico"><use href="#i-minus"/></svg></button>
-        <input class="input" type="number" name="cantidad" id="rCantidad" min="1" value="1" inputmode="numeric" required>
-        <button type="button" id="rMas" aria-label="Agregar una unidad"><svg class="ico"><use href="#i-plus"/></svg></button>
+
+    <div class="r-precios">
+      <div><small>Precio de compra</small><strong id="rCompra">Bs 0,00</strong></div>
+      <div><small>Precio de venta</small><strong id="rVenta">Bs 0,00</strong></div>
+    </div>
+
+    <div class="field" id="rClienteCampo">
+      <label for="rClienteQ">Cliente</label>
+      <div class="r-sel" id="rClienteSel" hidden>
+        <span class="r-av" id="rSelAv" aria-hidden="true"></span>
+        <span class="r-txt"><strong id="rSelNombre"></strong><small id="rSelDatos"></small></span>
+        <button type="button" class="r-link" id="rCambiar">Cambiar</button>
+      </div>
+      <div id="rBuscar">
+        <input class="input" type="search" id="rClienteQ" placeholder="Busca por nombre o teléfono" autocomplete="off">
+        <ul class="r-res" id="rClienteRes"></ul>
+        <button type="button" class="r-link" id="rNuevoBtn">+ Nuevo cliente</button>
+        <div class="r-nuevo" id="rNuevo" hidden>
+          <input class="input" type="text" id="rNuevoNombre" placeholder="Nombre del cliente" maxlength="120" autocomplete="off" aria-label="Nombre del cliente nuevo">
+          <input class="input" type="tel" id="rNuevoTel" placeholder="Teléfono (opcional)" maxlength="30" inputmode="tel" autocomplete="off" aria-label="Teléfono del cliente nuevo">
+          <button type="button" class="btn keep-label" id="rNuevoGuardar"><span>Guardar y elegir</span></button>
+        </div>
+      </div>
+      <span class="r-err" id="rClienteErr" role="alert" hidden></span>
+    </div>
+
+    <div class="r-fila">
+      <div class="field">
+        <label for="rCantidad">Cantidad</label>
+        <div class="stepper">
+          <button type="button" id="rMenos" aria-label="Quitar una unidad"><svg class="ico"><use href="#i-minus"/></svg></button>
+          <input class="input" type="number" name="cantidad" id="rCantidad" min="1" value="1" inputmode="numeric" required>
+          <button type="button" id="rMas" aria-label="Agregar una unidad"><svg class="ico"><use href="#i-plus"/></svg></button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="rPrecio">Precio de cada una</label>
+        <div class="input-affix"><span>Bs</span><input class="input" type="number" name="precio" id="rPrecio" min="0" step="0.01" inputmode="decimal" required></div>
       </div>
     </div>
+    <div class="r-total" aria-live="polite"><span>Total <strong id="rTotal">—</strong></span><span id="rGanancia"></span></div>
+    <p class="r-aviso" id="rAviso" role="status" hidden></p>
+
     <div class="field">
-      <label for="rNota">Para qué se usa (opcional)</label>
-      <input class="input" type="text" name="nota" id="rNota" maxlength="180" placeholder="Ej. Cambio de pantalla, equipo de Juan Pérez" autocomplete="off">
+      <label>Forma de pago</label>
+      <div class="seg" role="radiogroup" aria-label="Forma de pago">
+        <label><input type="radio" name="metodo" value="EFECTIVO" checked>Efectivo</label>
+        <label><input type="radio" name="metodo" value="QR">QR</label>
+        <label><input type="radio" name="metodo" value="FIADO">Fiado</label>
+      </div>
+      <span class="hint" id="rMetodoAyuda"></span>
     </div>
+
+    <div class="field">
+      <label for="rNota">Nota (opcional)</label>
+      <input class="input" type="text" name="nota" id="rNota" maxlength="150" placeholder="Ej. Cambio de pantalla, equipo de Juan Pérez" autocomplete="off">
+    </div>
+
     <div class="btns">
       <button class="btn keep-label" type="button" id="rCancelar">Cancelar</button>
-      <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>Confirmar retiro</span></button>
+      <button class="btn primary keep-label" type="submit" id="rConfirmar"><svg class="ico"><use href="#i-check"/></svg><span>Confirmar retiro</span></button>
     </div>
   </form>
 </dialog>

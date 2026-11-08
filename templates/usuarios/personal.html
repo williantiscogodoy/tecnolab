@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Usuarios{% endblock %}
+{% block page_title %}Usuarios{% endblock %}
+{% block page_sub %}<span class="date">Cuentas con las que se inicia sesión</span>{% endblock %}
+
+{% block extra_head %}{% include "usuarios/_estilos.html" %}{% endblock %}
+
+{% block actions %}
+<button class="btn primary" type="button" id="btnNuevo" aria-label="Nuevo usuario">
+  <svg class="ico"><use href="#i-plus"/></svg><span>Nuevo usuario</span>
+</button>
+{% endblock %}
+
+{% block content %}
+{% include "usuarios/_tabs.html" %}
+
+<section class="panel reveal" style="--i:1">
+  <div class="panel-head"><div><h2>Personal del taller</h2><p>{{ usuarios|length }} cuenta{{ usuarios|length|pluralize }}. Los técnicos retiran piezas y registran reparaciones; los administradores ven todo.</p></div></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Usuario</th><th>Rol</th><th class="hide-sm">Último acceso</th><th>Estado</th><th><span style="position:absolute;left:-9999px">Acciones</span></th></tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td>
+            <div class="cell-user">
+              <div class="avatar-c" aria-hidden="true">{{ u.get_username|first|upper }}</div>
+              <div style="min-width:0"><span class="name">{{ u.get_username }}</span>{% if u.es_yo %} <span class="badge off">Tú</span>{% endif %}<span class="sub">{{ u.first_name|default:"Sin nombre" }}</span></div>
+            </div>
+          </td>
+          <td><span class="badge {% if u.rol_texto == 'Técnico' %}tec{% else %}comp{% endif %}">{{ u.rol_texto }}</span></td>
+          <td class="hide-sm">{% if u.last_login %}{{ u.last_login|date:"d/m/Y H:i" }}{% else %}<span class="alday">Nunca</span>{% endif %}</td>
+          <td>{% if u.is_active %}<span class="badge in">Activo</span>{% else %}<span class="badge off">Desactivado</span>{% endif %}</td>
+          <td>
+            {% if u.editable %}
+            <div class="row-actions">
+              <button class="act js-clave" type="button" data-url="{% url 'personal_clave' u.pk %}" data-usuario="{{ u.get_username }}" aria-label="Cambiar la contraseña de {{ u.get_username }}" title="Cambiar contraseña"><svg class="ico"><use href="#i-edit"/></svg></button>
+              {% if not u.es_yo %}
+              <form method="post" action="{% url 'personal_estado' u.pk %}" style="display:inline">{% csrf_token %}
+                <button class="btn keep-label" type="submit" style="padding:0.45rem 0.8rem;font-size:0.82rem">{% if u.is_active %}Desactivar{% else %}Activar{% endif %}</button>
+              </form>
+              {% endif %}
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="sub" style="margin-top:1rem">Una cuenta desactivada no puede entrar, pero se conserva su historial de retiros y cobros.</p>
+</section>
+
+<dialog id="dlgNuevo" aria-labelledby="dlgNuevoTitulo">
+  <form method="post" class="dlg" action="{% url 'personal_crear' %}" novalidate autocomplete="off">
+    {% csrf_token %}
+    <h2 id="dlgNuevoTitulo">Nuevo usuario</h2>
+    <p>Crea la cuenta y entrégale el usuario y la contraseña.</p>
+    <div class="field"><label for="uUsuario">Usuario</label><input class="input" type="text" name="username" id="uUsuario" maxlength="150" required placeholder="Ej. juan" autocapitalize="none" autocomplete="off"></div>
+    <div class="field"><label for="uNombre">Nombre (opcional)</label><input class="input" type="text" name="nombre" id="uNombre" maxlength="60" placeholder="Ej. Juan Pérez" autocomplete="off"></div>
+    <div class="field"><label for="uClave">Contraseña</label><input class="input" type="password" name="password" id="uClave" required autocomplete="new-password"><span class="hint">Mínimo 8 letras o números; evita claves muy comunes.</span></div>
+    <div class="field"><label>Rol</label>
+      <div class="seg" role="radiogroup" aria-label="Rol">
+        <label><input type="radio" name="rol" value="tecnico" checked>Técnico</label>
+        <label><input type="radio" name="rol" value="admin">Administrador</label>
+      </div>
+    </div>
+    <div class="btns">
+      <button class="btn keep-label" type="button" data-cerrar>Cancelar</button>
+      <button class="btn primary keep-label" type="submit"><span>Crear usuario</span></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgClave" aria-labelledby="dlgClaveTitulo">
+  <form method="post" class="dlg" id="formClave" novalidate autocomplete="off">
+    {% csrf_token %}
+    <h2 id="dlgClaveTitulo">Cambiar contraseña</h2>
+    <p>Nueva contraseña para <strong id="claveUsuario"></strong>.</p>
+    <div class="field"><label for="uClave2">Contraseña nueva</label><input class="input" type="password" name="password" id="uClave2" required autocomplete="new-password"></div>
+    <div class="btns">
+      <button class="btn keep-label" type="button" data-cerrar>Cancelar</button>
+      <button class="btn primary keep-label" type="submit"><span>Guardar</span></button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var dn = document.getElementById('dlgNuevo'), dc = document.getElementById('dlgClave');
+    document.getElementById('btnNuevo').addEventListener('click', function () { dn.querySelector('form').reset(); dn.showModal(); document.getElementById('uUsuario').focus(); });
+    document.querySelectorAll('.js-clave').forEach(function (b) {
+      b.addEventListener('click', function () {
+        document.getElementById('formClave').action = b.dataset.url;
+        document.getElementById('claveUsuario').textContent = b.dataset.usuario;
+        document.getElementById('uClave2').value = '';
+        dc.showModal(); document.getElementById('uClave2').focus();
+      });
+    });
+    [dn, dc].forEach(function (d) {
+      d.querySelectorAll('[data-cerrar]').forEach(function (b) { b.addEventListener('click', function () { d.close(); }); });
+      d.addEventListener('click', function (e) { if (e.target === d) d.close(); });
+    });
+  })();
+</script>
+{% endblock %}

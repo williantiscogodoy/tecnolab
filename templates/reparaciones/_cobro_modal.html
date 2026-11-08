@@ -1,0 +1,177 @@
+{# Cuadro "Bien": resumen de lo reparado, piezas que salieron y dinero cobrado. Al confirmar se entrega la reparación y el monto entra a la caja. #}
+<style>
+  dialog#dlgBien { margin: auto; padding: 0; width: min(500px, calc(100vw - 2rem)); color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.7); max-height: calc(100dvh - 2rem); overflow: auto; }
+  dialog#dlgBien[open] { animation: popBien 0.4s var(--ease); }
+  dialog#dlgBien::backdrop { background: rgba(2, 6, 18, 0.62); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  @keyframes popBien { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
+  #formBien { padding: 1.5rem; display: grid; gap: 1.1rem; }
+  #formBien h2 { font-size: 1.15rem; letter-spacing: -0.01em; }
+  #formBien .who { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+  #formBien .who strong { color: var(--text); }
+  #formBien .btns { display: flex; justify-content: flex-end; gap: 0.7rem; flex-wrap: wrap; }
+  .bien-sec h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 0.45rem; }
+  .bien-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+  .bien-lista li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.5rem 0.75rem; border-radius: 11px; background: var(--surface-2); border: 1px solid var(--border); font-size: 0.9rem; }
+  .bien-lista li.equipo { display: grid; gap: 0.1rem; }
+  .bien-lista li.equipo span { color: var(--muted); font-size: 0.85rem; }
+  .bien-lista li span:last-child { font-variant-numeric: tabular-nums; }
+  .bien-lista li.pieza span:last-child { white-space: nowrap; color: var(--muted); }
+  .bien-vacio { color: var(--muted); font-size: 0.88rem; }
+  .bien-cuentas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
+  .bien-cuentas div { padding: 0.65rem 0.85rem; border-radius: 12px; border: 1px solid var(--border); }
+  .bien-cuentas small { display: block; color: var(--muted); font-size: 0.76rem; }
+  .bien-cuentas strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+  .bien-cuentas .pos { color: var(--ok); }
+  .bien-cuentas .neg { color: var(--danger); }
+  :root[data-theme="light"] .bien-cuentas .pos { color: #047857; }
+  :root[data-theme="light"] .bien-cuentas .neg { color: #be123c; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0.4rem; padding: 0.3rem; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+  .seg label { position: relative; display: grid; place-items: center; padding: 0.55rem 0.4rem; border-radius: 9px; font-size: 0.9rem; font-weight: 600; color: var(--muted); cursor: pointer; transition: background-color 0.2s, color 0.2s; }
+  .seg input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+  .seg label:has(input:checked) { background: var(--primary); color: #fff; }
+  .seg label:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .bien-nota { display: flex; gap: 0.55rem; color: var(--muted); font-size: 0.83rem; line-height: 1.45; }
+  .bien-nota .ico { width: 17px; height: 17px; flex: none; margin-top: 1px; color: var(--primary); }
+
+  /* Botón "Bien" de las filas */
+  .btn-bien { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.42rem 0.85rem 0.42rem 0.65rem; border-radius: 999px; border: 1px solid rgba(16, 185, 129, 0.4); background: var(--ok-bg); color: var(--ok); font-weight: 700; font-size: 0.84rem; line-height: 1.2; transition: background-color 0.2s, color 0.2s, transform 0.15s; }
+  .btn-bien:hover { background: var(--ok); color: #fff; }
+  .btn-bien:active { transform: scale(0.97); }
+  .btn-bien:disabled { opacity: 0.6; cursor: progress; }
+  .btn-bien .ico { width: 16px; height: 16px; }
+  :root[data-theme="light"] .btn-bien { color: #047857; }
+  :root[data-theme="light"] .btn-bien:hover { color: #fff; }
+  .cobrado-tag { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cobrado-tag .ico { width: 15px; height: 15px; color: var(--ok); }
+  td.acc, th.acc { text-align: right; white-space: nowrap; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+
+<dialog id="dlgBien" aria-labelledby="bienTitulo">
+  <form method="post" id="formBien">
+    {% csrf_token %}
+    <input type="hidden" name="next" id="bNext" value="">
+    <div>
+      <h2 id="bienTitulo">Resumen de la reparación</h2>
+      <p class="who"><strong id="bCodigo"></strong> · <span id="bCliente"></span></p>
+    </div>
+
+    <div class="bien-sec">
+      <h3>Qué se reparó</h3>
+      <ul class="bien-lista" id="bEquipos"></ul>
+    </div>
+
+    <div class="bien-sec">
+      <h3>Productos que salieron</h3>
+      <ul class="bien-lista" id="bPiezas"></ul>
+      <p class="bien-vacio" id="bSinPiezas" hidden>No se usaron piezas del inventario.</p>
+    </div>
+
+    <div class="field">
+      <label for="bMonto">Cuánto se cobró</label>
+      <div class="input-affix"><span>Bs</span><input class="input" type="number" name="monto" id="bMonto" min="0" step="0.01" inputmode="decimal" placeholder="0.00" required></div>
+      <span class="hint" id="bAyuda"></span>
+    </div>
+
+    <div class="field">
+      <label>Forma de pago</label>
+      <div class="seg" role="radiogroup" aria-label="Forma de pago">
+        <label><input type="radio" name="metodo" value="EFECTIVO" checked>Efectivo</label>
+        <label><input type="radio" name="metodo" value="QR">QR</label>
+      </div>
+    </div>
+
+    <div class="bien-cuentas" aria-live="polite">
+      <div><small>Inversión en piezas</small><strong id="bInv">Bs 0,00</strong></div>
+      <div><small>Ganancia del arreglo</small><strong id="bGan">—</strong></div>
+    </div>
+
+    <p class="bien-nota"><svg class="ico"><use href="#i-info"/></svg><span id="bNota"></span></p>
+
+    <div class="btns">
+      <button class="btn keep-label" type="button" id="bCancelar">Cancelar</button>
+      <button class="btn primary keep-label" type="submit" id="bConfirmar"><svg class="ico"><use href="#i-check"/></svg><span>Confirmar y registrar en caja técnico</span></button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  (function () {
+    var dlg = document.getElementById('dlgBien'), form = document.getElementById('formBien');
+    var monto = document.getElementById('bMonto'), gan = document.getElementById('bGan'), inv = document.getElementById('bInv');
+    var costo = 0;
+
+    function $(id) { return document.getElementById(id); }
+    function fmt(n) { return n.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+    function pintarGanancia() {
+      inv.textContent = 'Bs ' + fmt(costo);
+      var m = parseFloat(monto.value);
+      if (isNaN(m)) { gan.textContent = '—'; gan.className = ''; return; }
+      var g = m - costo, t = (g < 0 ? '−' : '') + 'Bs ' + fmt(Math.abs(g));
+      if (m > 0) t += ' · ' + (g < 0 ? '−' : '') + fmt(Math.abs(g / m * 100)) + ' %';
+      gan.textContent = t;
+      gan.className = g >= 0 ? 'pos' : 'neg';
+    }
+    monto.addEventListener('input', pintarGanancia);
+
+    function item(clase, izq, der, sub) {
+      var li = document.createElement('li'); li.className = clase;
+      var a = document.createElement('span'); a.textContent = izq;
+      li.appendChild(a);
+      if (der !== undefined) { var b = document.createElement('span'); b.textContent = der; li.appendChild(b); }
+      return li;
+    }
+
+    function llenar(d) {
+      $('bCodigo').textContent = d.codigo;
+      $('bCliente').textContent = d.cliente;
+
+      var eq = $('bEquipos'); eq.innerHTML = '';
+      d.equipos.forEach(function (e) {
+        var li = document.createElement('li'); li.className = 'equipo';
+        var m = document.createElement('strong'); m.textContent = e.modelo;
+        var f = document.createElement('span'); f.textContent = e.falla || 'Sin falla anotada';
+        li.appendChild(m); li.appendChild(f); eq.appendChild(li);
+      });
+
+      var pz = $('bPiezas'); pz.innerHTML = '';
+      d.piezas.forEach(function (p) { pz.appendChild(item('pieza', p.cantidad + ' × ' + p.nombre, 'Bs ' + fmt(p.costo))); });
+      $('bSinPiezas').hidden = d.piezas.length > 0;
+      pz.hidden = d.piezas.length === 0;
+
+      costo = d.costo_piezas;
+      monto.value = d.cobro === null ? '' : d.cobro.toFixed(2);
+      $('bAyuda').textContent = d.cobro === null
+        ? 'Escribe lo que recibiste del cliente (0 si no se cobró nada).'
+        : 'Aparece lo que anotaste como cobro. Cámbialo si cobraste otra cantidad.';
+      $('bNota').textContent = d.ya_entregada
+        ? 'Esta reparación ya figura como entregada; solo se registrará el dinero en la caja técnico.'
+        : 'Al confirmar, la reparación pasa a “Entregado” y el dinero se suma a la caja técnico.';
+
+      form.action = d.cobrar_url;
+      $('bNext').value = location.pathname + location.search;
+      form.querySelector('input[name="metodo"][value="EFECTIVO"]').checked = true;
+      $('bConfirmar').disabled = false;
+      pintarGanancia();
+    }
+
+    // Un solo oyente: sirve para los botones de la lista aunque se vuelvan a dibujar al buscar
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('.js-bien');
+      if (!b) return;
+      e.preventDefault();
+      b.disabled = true;
+      fetch(b.dataset.url, { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+        .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
+        .then(function (d) { llenar(d); dlg.showModal(); monto.focus(); monto.select(); })
+        .catch(function () { window.alert('No se pudo cargar el resumen. Es posible que esta reparación ya esté cobrada; recarga la página.'); })
+        .then(function () { b.disabled = false; });
+    });
+
+    $('bCancelar').addEventListener('click', function () { dlg.close(); });
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+    // Evita registrar el cobro dos veces si se toca el botón repetidamente
+    form.addEventListener('submit', function () { setTimeout(function () { $('bConfirmar').disabled = true; }, 0); });
+  })();
+</script>

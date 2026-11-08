@@ -9,10 +9,12 @@ from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.http import urlencode
 
 from .forms import CategoriaForm, MovimientoForm, ProductoForm
-from .models import Categoria, Movimiento, Producto
-from .roles import ADMIN, TECNICO, rol_de
+from .clientes import deudas_por_cliente
+from .models import CajaMovimiento, Categoria, Movimiento, Producto, Reparacion
+from .roles import ADMIN, TECNICO, admin_o_tecnico, rol_de
 from .roles import solo_admin as staff_required
 
 
@@ -240,45 +242,101 @@ def categoria_eliminar(request, pk):
 
 
 # ============================== Movimientos ==============================
-@staff_required
+@admin_o_tecnico
 def movimiento_lista(request):
-    movimientos = Movimiento.objects.select_related("producto", "usuario")
+    """Movimientos de inventario y caja (dos cajas: técnico y productos).
+
+    El administrador ve todo; el técnico solo lo suyo (sus retiros y el dinero que él recibió).
+    """
+    es_admin = rol_de(request.user) == ADMIN
+    vista = "caja" if request.GET.get("vista") == "caja" else "inventario"
 
     q = request.GET.get("q", "").strip()
     tipo = request.GET.get("tipo", "")
+    caja_sel = request.GET.get("caja", "")
+    metodo_sel = request.GET.get("metodo", "")
     desde = parse_date(request.GET.get("desde", "") or "")
     hasta = parse_date(request.GET.get("hasta", "") or "")
 
-    if q:
-        movimientos = movimientos.filter(Q(producto__nombre__icontains=q) | Q(producto__sku__icontains=q))
-    if tipo in (Movimiento.ENTRADA, Movimiento.SALIDA):
-        movimientos = movimientos.filter(tipo=tipo)
-    else:
-        tipo = ""
+    # --- Inventario (alcance por usuario + fechas)
+    base_mov = Movimiento.objects.select_related("producto", "usuario")
+    if not es_admin:
+        base_mov = base_mov.filter(usuario=request.user)
     if desde:
-        movimientos = movimientos.filter(fecha__date__gte=desde)
+        base_mov = base_mov.filter(fecha__date__gte=desde)
     if hasta:
-        movimientos = movimientos.filter(fecha__date__lte=hasta)
+        base_mov = base_mov.filter(fecha__date__lte=hasta)
 
-    totales = {r["tipo"]: r["t"] for r in movimientos.values("tipo").annotate(t=Sum("cantidad"))}
-    page_obj = Paginator(movimientos.order_by("-fecha", "-pk"), 15).get_page(request.GET.get("page"))
+    # --- Caja (alcance por usuario + fechas): totales de cada caja por forma de pago
+    base_caja = CajaMovimiento.objects.select_related("usuario", "reparacion", "cliente")
+    if not es_admin:
+        base_caja = base_caja.filter(usuario=request.user)
+    if desde:
+        base_caja = base_caja.filter(fecha__date__gte=desde)
+    if hasta:
+        base_caja = base_caja.filter(fecha__date__lte=hasta)
+    cajas = {c: {"total": 0, "EFECTIVO": 0, "QR": 0, "n": 0} for c in (CajaMovimiento.TECNICO, CajaMovimiento.PRODUCTOS)}
+    for r in base_caja.values("caja", "metodo").annotate(t=Sum("monto"), n=Count("pk")).order_by():
+        c = cajas[r["caja"]]
+        c["total"] += r["t"]; c[r["metodo"]] += r["t"]; c["n"] += r["n"]
+
+    if vista == "caja":
+        tipo = ""
+        registros = base_caja
+        if caja_sel in cajas:
+            registros = registros.filter(caja=caja_sel)
+        else:
+            caja_sel = ""
+        if metodo_sel in (CajaMovimiento.EFECTIVO, CajaMovimiento.QR):
+            registros = registros.filter(metodo=metodo_sel)
+        else:
+            metodo_sel = ""
+        for palabra in q.split():
+            registros = registros.filter(Q(concepto__icontains=palabra) | Q(cliente__nombre__icontains=palabra))
+        registros = registros.order_by("-fecha", "-pk")
+        totales = {r["tipo"]: r["t"] for r in base_mov.values("tipo").annotate(t=Sum("cantidad")).order_by()}
+    else:
+        caja_sel = metodo_sel = ""
+        registros = base_mov
+        if q:
+            registros = registros.filter(Q(producto__nombre__icontains=q) | Q(producto__sku__icontains=q))
+        if tipo in (Movimiento.ENTRADA, Movimiento.SALIDA):
+            registros = registros.filter(tipo=tipo)
+        else:
+            tipo = ""
+        totales = {r["tipo"]: r["t"] for r in registros.values("tipo").annotate(t=Sum("cantidad")).order_by()}
+        registros = registros.order_by("-fecha", "-pk")
+
+    page_obj = Paginator(registros, 15).get_page(request.GET.get("page"))
 
     params = request.GET.copy()
     params.pop("page", None)
 
+    deudas = deudas_por_cliente() if es_admin else {}
+    fechas = {k: v for k, v in (("desde", desde.isoformat() if desde else ""), ("hasta", hasta.isoformat() if hasta else "")) if v}
     return render(request, "movimientos/lista.html", {
+        "es_admin": es_admin,
+        "vista": vista,
+        "tab_inventario": "?" + urlencode(fechas),
+        "tab_caja": "?" + urlencode({**fechas, "vista": "caja"}),
         "page_obj": page_obj,
         "pag_anterior": max(page_obj.number - 1, 1),
         "pag_siguiente": min(page_obj.number + 1, page_obj.paginator.num_pages),
         "qs": params.urlencode(),
         "q": q,
         "tipo": tipo,
+        "caja_sel": caja_sel,
+        "metodo_sel": metodo_sel,
         "desde": desde.isoformat() if desde else "",
         "hasta": hasta.isoformat() if hasta else "",
-        "hay_filtros": bool(q or tipo or desde or hasta),
+        "hay_filtros": bool(q or tipo or caja_sel or metodo_sel or desde or hasta),
+        "hay_fechas": bool(desde or hasta),
         "total_entradas": totales.get(Movimiento.ENTRADA, 0),
         "total_salidas": totales.get(Movimiento.SALIDA, 0),
-        "total_general": Movimiento.objects.count(),
+        "caja_tecnico": cajas[CajaMovimiento.TECNICO],
+        "caja_productos": cajas[CajaMovimiento.PRODUCTOS],
+        "por_cobrar": sum(deudas.values(), 0),
+        "n_deudores": len(deudas),
     })
 
 
