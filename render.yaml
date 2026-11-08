@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: tecnolab
+    runtime: python
+    plan: free
+    buildCommand: ./build.sh
+    startCommand: gunicorn tecnolab.wsgi:application --workers 2 --timeout 60
+    healthCheckPath: /salud/
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      # Los valores secretos se pegan en el panel de Render (sync: false = pide valor)
+      - key: DATABASE_URL
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: SALUD_TOKEN
+        sync: false
