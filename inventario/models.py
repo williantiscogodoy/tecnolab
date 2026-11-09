@@ -4,6 +4,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from .imagenes import ANCHO_GALERIA, ANCHO_MINIATURA, ANCHO_VISTA, optimizada
+
 
 class Categoria(models.Model):
     nombre = models.CharField(max_length=100, unique=True)
@@ -68,17 +70,25 @@ class Producto(models.Model):
     @property
     def galeria(self):
         """URLs de todas las imágenes: la principal primero y luego las de referencia."""
-        urls = [self.imagen.url] if self.imagen else []
-        urls += [r.imagen.url for r in self.imagenes.all()]
+        urls = [optimizada(self.imagen.url, ANCHO_GALERIA)] if self.imagen else []
+        urls += [optimizada(r.imagen.url, ANCHO_GALERIA) for r in self.imagenes.all()]
         return urls
 
     @property
     def portada_url(self):
         """Imagen para miniaturas: la principal o, si no hay, la primera de referencia."""
         if self.imagen:
-            return self.imagen.url
+            return optimizada(self.imagen.url, ANCHO_MINIATURA)
         referencias = list(self.imagenes.all())  # usa prefetch_related("imagenes") si existe
-        return referencias[0].imagen.url if referencias else None
+        return optimizada(referencias[0].imagen.url, ANCHO_MINIATURA) if referencias else None
+
+    @property
+    def imagen_miniatura(self):
+        return optimizada(self.imagen.url, ANCHO_MINIATURA) if self.imagen else None
+
+    @property
+    def imagen_vista(self):
+        return optimizada(self.imagen.url, ANCHO_VISTA) if self.imagen else None
 
 
 class ProductoImagen(models.Model):
@@ -94,6 +104,10 @@ class ProductoImagen(models.Model):
 
     def __str__(self):
         return f"Imagen de {self.producto.nombre}"
+
+    @property
+    def miniatura(self):
+        return optimizada(self.imagen.url, ANCHO_MINIATURA) if self.imagen else None
 
 
 class Movimiento(models.Model):

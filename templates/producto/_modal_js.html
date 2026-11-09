@@ -42,7 +42,7 @@
 
     /* ---------- Retirar pieza: venta a un cliente (efectivo, QR o fiado) ---------- */
     var dlgR = $('dlgRetiro'), formR = $('formRetiro');
-    var cant = $('rCantidad'), precio = $('rPrecio'), stockR = 0, compraR = 0, ventaR = 0;
+    var cant = $('rCantidad'), precio = $('rPrecio'), stockR = 0, compraR = 0, ventaR = 0, verCompra = false;
     var cliQ = $('rClienteQ'), cliRes = $('rClienteRes'), cliErr = $('rClienteErr');
     var timerCli = null, seqCli = 0;
     var cajaR = 'caja productos';   // se ajusta según la categoría del producto que se retira
@@ -61,6 +61,7 @@
       var total = $('rTotal'), gan = $('rGanancia'), aviso = $('rAviso');
       if (isNaN(p) || p < 0) { total.textContent = '—'; gan.textContent = ''; gan.className = ''; aviso.hidden = true; return; }
       total.textContent = 'Bs ' + dinero(p * n);
+      if (!verCompra) { gan.textContent = ''; gan.className = ''; aviso.hidden = true; return; }   // el técnico no ve costos
       var g = (p - compraR) * n;
       gan.textContent = (g < 0 ? 'Pérdida Bs ' : 'Ganancia Bs ') + dinero(Math.abs(g));
       gan.className = g < 0 ? 'neg' : 'pos';
@@ -135,13 +136,15 @@
     /* d: los datos del producto (la misma respuesta del cuadro de detalle) */
     function abrirRetiro(d) {
       stockR = parseInt(d.stock, 10) || 0;
+      verCompra = d.precio_compra !== undefined;
       compraR = parseFloat(d.precio_compra) || 0; ventaR = parseFloat(d.precio_venta) || 0;
       formR.action = d.retirar_url;
       cajaR = d.es_tecnica ? 'caja técnico' : 'caja productos';
       $('rNext').value = location.pathname + location.search;
       $('rNombre').textContent = d.nombre;
       $('rStock').textContent = stockR;
-      $('rCompra').textContent = 'Bs ' + dinero(compraR);
+      $('rCompra').textContent = verCompra ? 'Bs ' + dinero(compraR) : '';
+      $('rCompra').parentNode.hidden = !verCompra;
       $('rVenta').textContent = 'Bs ' + dinero(ventaR);
       cant.max = stockR; cant.value = 1;
       precio.value = ventaR.toFixed(2);
@@ -220,7 +223,7 @@
       if (varias) {
         lista.forEach(function (u, k) {
           var b = el('button'); b.type = 'button'; b.setAttribute('aria-label', 'Ver imagen ' + (k + 1));
-          var i = el('img'); i.src = u; i.alt = ''; b.appendChild(i);
+          var i = el('img'); i.src = u.replace('w_1400', 'w_160'); i.alt = ''; b.appendChild(i);
           b.addEventListener('click', function () { irAImagen(k); });
           pThumbs.appendChild(b);
         });
@@ -382,7 +385,7 @@
       var extra = $('pExtra'); extra.innerHTML = '';
       extra.hidden = d.precio_venta === undefined;
       if (d.precio_venta !== undefined) {
-        [['Precio de compra', d.precio_compra], ['Precio de venta', d.precio_venta]].forEach(function (par) {
+        [['Precio de compra', d.precio_compra], ['Precio de venta', d.precio_venta]].filter(function (par) { return par[1] !== undefined; }).forEach(function (par) {
           var w = el('div'); w.appendChild(el('dt', null, par[0])); w.appendChild(el('dd', null, 'Bs ' + par[1])); extra.appendChild(w);
         });
       }

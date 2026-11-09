@@ -66,7 +66,7 @@
 {% endblock %}
 
 {% block content %}
-<a class="link back reveal" href="{% url 'producto_lista' %}"><svg class="ico"><use href="#i-arrow-left"/></svg>Volver a productos</a>
+<a class="link back reveal" href="{% if modo_tecnico %}{% url 'tecnico_panel' %}{% else %}{% url 'producto_lista' %}{% endif %}"><svg class="ico"><use href="#i-arrow-left"/></svg>Volver a {% if modo_tecnico %}mi panel{% else %}productos{% endif %}</a>
 
 <form method="post" enctype="multipart/form-data" novalidate>
   {% csrf_token %}
@@ -87,17 +87,21 @@
           </div>
           {% include "productos/_campo.html" with field=form.descripcion %}
         </div>
-        <p class="note" style="margin-top:1rem"><svg class="ico"><use href="#i-info"/></svg><span>¿Falta una categoría? <a class="link" href="{% url 'categoria_lista' %}">Créala en Categorías</a> y vuelve a este formulario.</span></p>
+        {% if not modo_tecnico %}<p class="note" style="margin-top:1rem"><svg class="ico"><use href="#i-info"/></svg><span>¿Falta una categoría? <a class="link" href="{% url 'categoria_lista' %}">Créala en Categorías</a> y vuelve a este formulario.</span></p>{% endif %}
       </section>
 
       <section class="panel reveal" style="--i:2">
         <div class="panel-head"><div><h2>Precios</h2><p>En bolivianos (Bs)</p></div></div>
         <div class="fields">
+          {% if modo_tecnico %}
+          {% include "productos/_campo.html" with field=form.precio_venta prefix="Bs" %}
+          {% else %}
           <div class="fields two">
             {% include "productos/_campo.html" with field=form.precio_compra prefix="Bs" %}
             {% include "productos/_campo.html" with field=form.precio_venta prefix="Bs" %}
           </div>
           <div class="margin" id="margen" aria-live="polite"><span>Ganancia por unidad</span><strong id="margenValor">—</strong></div>
+          {% endif %}
         </div>
       </section>
     </div>
@@ -107,7 +111,7 @@
         <div class="panel-head"><div><h2>Imagen</h2><p>Se muestra en el listado de productos</p></div></div>
 
         <label class="dropzone {% if producto and producto.imagen %}has-img{% endif %}" id="dz">
-          {% if producto and producto.imagen %}<img id="preview" src="{{ producto.imagen.url }}" alt="Imagen actual de {{ producto.nombre }}">
+          {% if producto and producto.imagen %}<img id="preview" src="{{ producto.imagen_vista }}" alt="Imagen actual de {{ producto.nombre }}">
           {% else %}<img id="preview" alt="Vista previa" hidden>{% endif %}
           <span class="dz-text">
             <svg class="ico"><use href="#i-upload"/></svg>
@@ -129,7 +133,7 @@
         {% if producto and producto.imagenes.all %}
         <div class="refs" aria-label="Imágenes de referencia actuales">
           {% for im in producto.imagenes.all %}
-          <label class="ref"><img src="{{ im.imagen.url }}" alt="Imagen de referencia {{ forloop.counter }}" loading="lazy"><input type="checkbox" name="quitar_ref" value="{{ im.pk }}"><span class="x"><svg class="ico"><use href="#i-trash"/></svg>Quitar</span></label>
+          <label class="ref"><img src="{{ im.miniatura }}" alt="Imagen de referencia {{ forloop.counter }}" loading="lazy"><input type="checkbox" name="quitar_ref" value="{{ im.pk }}"><span class="x"><svg class="ico"><use href="#i-trash"/></svg>Quitar</span></label>
           {% endfor %}
         </div>
         {% endif %}
@@ -146,19 +150,21 @@
             {% include "productos/_campo.html" with field=form.stock_minimo %}
           </div>
 
-          {% if producto %}
+          {% if producto and not modo_tecnico %}
           <p class="note"><svg class="ico"><use href="#i-info"/></svg><span>El stock cambia al registrar entradas y salidas, así queda todo el historial. <a class="link" href="{% url 'movimiento_crear' %}?producto={{ producto.pk }}">Registrar movimiento</a></span></p>
           {% endif %}
 
+          {% if not modo_tecnico %}
           <label class="switch">
             <span><strong>Producto activo</strong><small>Los inactivos no cuentan en el dashboard</small></span>
             <span class="sw">{{ form.activo }}<i class="track"></i></span>
           </label>
+          {% endif %}
         </div>
       </section>
 
       <div class="form-actions reveal" style="--i:6">
-        <a class="btn keep-label" href="{% url 'producto_lista' %}">Cancelar</a>
+        <a class="btn keep-label" href="{% if modo_tecnico %}{% url 'tecnico_panel' %}{% else %}{% url 'producto_lista' %}{% endif %}">Cancelar</a>
         <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-check"/></svg><span>{% if producto %}Guardar cambios{% else %}Crear producto{% endif %}</span></button>
       </div>
     </div>
@@ -181,32 +187,91 @@
       out.textContent = 'Bs ' + fmt(gan) + ' · ' + fmt(pct) + ' %';
       out.className = gan >= 0 ? 'pos' : 'neg';
     }
-    compra.addEventListener('input', calc);
-    venta.addEventListener('input', calc);
-    calc();
+    if (compra && out) {   // el técnico no tiene precio de compra ni margen
+      compra.addEventListener('input', calc);
+      venta.addEventListener('input', calc);
+      calc();
+    }
 
-    /* Vista previa de la imagen */
-    var MAX = 5 * 1024 * 1024;
+    /* ---------- Imágenes: se reducen en el navegador antes de subirlas ---------- */
+    var MAX = 5 * 1024 * 1024;          // tope del servidor, se revisa DESPUÉS de reducir
+    var LADO_MAX = 1600, CALIDAD = 0.82, UMBRAL = 300 * 1024;
+
+    function comprimir(file) {
+      // Solo JPG/PNG/WebP grandes. Los demás (GIF, etc.) o cualquier fallo: se sube el original.
+      if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < UMBRAL) return Promise.resolve(file);
+      if (!window.createImageBitmap || !HTMLCanvasElement.prototype.toBlob || !window.File) return Promise.resolve(file);
+      return createImageBitmap(file, { imageOrientation: 'from-image' }).then(function (bmp) {
+        var esc = Math.min(1, LADO_MAX / Math.max(bmp.width, bmp.height));
+        var w = Math.max(1, Math.round(bmp.width * esc)), h = Math.max(1, Math.round(bmp.height * esc));
+        var c = document.createElement('canvas'); c.width = w; c.height = h;
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);   // PNG con transparencia: fondo blanco
+        ctx.drawImage(bmp, 0, 0, w, h);
+        if (bmp.close) bmp.close();
+        return new Promise(function (ok) {
+          c.toBlob(function (blob) {
+            if (!blob || blob.size >= file.size) return ok(file);   // si no mejora, se deja el original
+            ok(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg', lastModified: Date.now() }));
+          }, 'image/jpeg', CALIDAD);
+        });
+      }).catch(function () { return file; });
+    }
+
+    /* Aviso "Optimizando…" y bloqueo del envío mientras se reduce alguna foto */
     var dz = document.getElementById('dz');
+    var ocupado = 0, esperar = [];
+    var info = document.createElement('span');
+    info.id = 'imgEstado'; info.setAttribute('role', 'status'); info.hidden = true;
+    info.style.cssText = 'font-size:.82rem;display:block;margin-top:.5rem;opacity:.8';
+    info.textContent = 'Optimizando imágenes…';
+    dz.parentNode.insertBefore(info, dz.nextSibling);
+    function trabajo(promesa) {
+      ocupado++; info.hidden = false;
+      function fin() {
+        ocupado--;
+        if (!ocupado) {
+          info.hidden = true;
+          // Un instante después: así los manejadores de cada foto ya la cambiaron por la reducida
+          // antes de reenviar el formulario (si no, se enviaría la original).
+          setTimeout(function () { if (!ocupado) esperar.splice(0).forEach(function (f) { f(); }); }, 0);
+        }
+      }
+      return promesa.then(function (r) { fin(); return r; }, function (e) { fin(); throw e; });
+    }
+    var formulario = dz.closest('form');
+    formulario.addEventListener('submit', function (e) {
+      if (!ocupado) return;
+      e.preventDefault();                       // espera a que terminen las fotos y reenvía
+      var boton = e.submitter;
+      esperar.push(function () { boton ? formulario.requestSubmit(boton) : formulario.requestSubmit(); });
+    });
+
+    /* Imagen principal */
     var input = document.getElementById('id_imagen');
     var preview = document.getElementById('preview');
     var err = document.getElementById('imgError');
+    var turno = 0;
     input.addEventListener('change', function () {
-      var f = input.files[0];
+      var f = input.files[0], mio = ++turno;
       err.hidden = true;
       if (!f) return;
-      if (f.size > MAX) {
-        input.value = '';
-        err.textContent = 'La imagen supera los 5 MB. Elige una más liviana.';
-        err.hidden = false;
-        return;
-      }
-      preview.src = URL.createObjectURL(f);
-      preview.hidden = false;
-      dz.classList.add('has-img');
-      dz.classList.remove('removed');
-      var q = document.getElementById('id_quitar_imagen');
-      if (q) q.checked = false;
+      trabajo(comprimir(f)).then(function (r) {
+        if (mio !== turno) return;               // eligió otra foto mientras tanto
+        if (r.size > MAX) {
+          input.value = '';
+          err.textContent = 'La imagen sigue superando los 5 MB. Elige una más liviana.';
+          err.hidden = false;
+          return;
+        }
+        if (r !== f) { var d = new DataTransfer(); d.items.add(r); input.files = d.files; }
+        preview.src = URL.createObjectURL(r);
+        preview.hidden = false;
+        dz.classList.add('has-img');
+        dz.classList.remove('removed');
+        var q = document.getElementById('id_quitar_imagen');
+        if (q) q.checked = false;
+      });
     });
     ['dragenter', 'dragover'].forEach(function (e) { dz.addEventListener(e, function () { dz.classList.add('drag'); }); });
     ['dragleave', 'drop'].forEach(function (e) { dz.addEventListener(e, function () { dz.classList.remove('drag'); }); });
@@ -236,13 +301,16 @@
     }
     refInput.addEventListener('change', function () {
       refErr.hidden = true;
-      Array.prototype.forEach.call(refInput.files, function (f) {
-        if (f.size > MAX) { refErr.textContent = '“' + f.name + '” supera los 5 MB.'; refErr.hidden = false; return; }
-        if (existentes + dt.files.length >= MAXREF) { refErr.textContent = 'Máximo ' + MAXREF + ' imágenes de referencia.'; refErr.hidden = false; return; }
-        dt.items.add(f);
+      var elegidas = Array.prototype.slice.call(refInput.files);   // se copian ya: el input se reutiliza
+      trabajo(Promise.all(elegidas.map(comprimir))).then(function (listas) {
+        listas.forEach(function (f) {
+          if (f.size > MAX) { refErr.textContent = '“' + f.name + '” sigue superando los 5 MB.'; refErr.hidden = false; return; }
+          if (existentes + dt.files.length >= MAXREF) { refErr.textContent = 'Máximo ' + MAXREF + ' imágenes de referencia.'; refErr.hidden = false; return; }
+          dt.items.add(f);
+        });
+        refInput.files = dt.files;
+        pintarRefs();
       });
-      refInput.files = dt.files;
-      pintarRefs();
     });
   })();
 </script>

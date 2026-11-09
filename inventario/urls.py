@@ -31,6 +31,7 @@ urlpatterns = [
     path("tecnico/", tecnico.tecnico_panel, name="tecnico_panel"),
     path("tecnico/retirar/<int:pk>/", tecnico.tecnico_retirar, name="tecnico_retirar"),
     path("tecnico/producto/<int:pk>/", tecnico.tecnico_producto, name="tecnico_producto"),
+    path("tecnico/producto/<int:pk>/editar/", tecnico.tecnico_producto_editar, name="tecnico_producto_editar"),
     path("tecnico/producto/<int:pk>/compatibles/buscar/", tecnico.tecnico_compat_buscar, name="tecnico_compat_buscar"),
     path("tecnico/producto/<int:pk>/compatibles/agregar/", tecnico.tecnico_compat_agregar, name="tecnico_compat_agregar"),
     path("tecnico/producto/<int:pk>/compatibles/<int:otro>/quitar/", tecnico.tecnico_compat_quitar, name="tecnico_compat_quitar"),

@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST
 from decimal import Decimal, InvalidOperation
 
 from .clientes import leer_monto
+from .forms import ProductoTecnicoForm
 from .models import CajaMovimiento, Categoria, Cliente, Movimiento, Producto, Reparacion, Venta
 from .roles import ADMIN, admin_o_tecnico, rol_de
 from .utils import url_params
@@ -164,8 +165,7 @@ def tecnico_producto(request, pk):
         "imagenes": p.galeria,
         "puede_retirar": (es_admin or p.categoria.es_tecnica) and p.stock > 0 and p.activo,
         "retirar_url": reverse("tecnico_retirar", args=[p.pk]),
-        # Técnico y administrador ven los dos precios y cuándo se cambió el de venta por última vez
-        "precio_compra": f"{p.precio_compra:.2f}",
+        # El precio de compra lo ve solo el administrador; el técnico ve el de venta y cuándo se cambió
         "precio_venta": f"{p.precio_venta:.2f}",
         "precio_venta_actualizado": (
             localtime(p.precio_venta_actualizado).strftime("%d/%m/%Y") if p.precio_venta_actualizado else ""
@@ -177,8 +177,33 @@ def tecnico_producto(request, pk):
         "compat_agregar_url": reverse("tecnico_compat_agregar", args=[p.pk]),
     }
     if es_admin:
+        datos["precio_compra"] = f"{p.precio_compra:.2f}"
         datos["editar_url"] = reverse("producto_editar", args=[p.pk])
+    elif p.categoria.es_tecnica and p.activo:
+        datos["editar_url"] = reverse("tecnico_producto_editar", args=[p.pk])
     return JsonResponse(datos)
+
+
+@admin_o_tecnico
+def tecnico_producto_editar(request, pk):
+    """El técnico edita los productos de las categorías técnicas (sin precio de compra)."""
+    if rol_de(request.user) == ADMIN:
+        return redirect("producto_editar", pk=pk)
+
+    producto = get_object_or_404(
+        Producto.objects.select_related("categoria"), pk=pk, activo=True, categoria__es_tecnica=True,
+    )
+    form = ProductoTecnicoForm(request.POST or None, request.FILES or None, instance=producto)
+
+    if request.method == "POST" and form.is_valid():
+        producto = form.save()
+        form.guardar_referencias(producto)
+        messages.success(request, f"Los cambios en “{producto.nombre}” se guardaron.")
+        return redirect("tecnico_panel")
+
+    if request.method == "POST":
+        messages.error(request, "Revisa los campos marcados en rojo.")
+    return render(request, "productos/form.html", {"form": form, "producto": producto, "modo_tecnico": True})
 
 
 def _error_json(mensaje, estado=400):
