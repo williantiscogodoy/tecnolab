@@ -1,10 +1,13 @@
 from unittest import mock
 
+from django.contrib.auth.models import Group, User
 from django.core.files.storage import FileSystemStorage
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase, override_settings
 
 from .imagenes import optimizada
-from .models import Categoria, Producto, ProductoImagen
+from .models import Categoria, Movimiento, Producto, ProductoImagen
+from .roles import GRUPO_TECNICO
 
 CLOUD = "https://res.cloudinary.com/demo/image/upload/v1/media/productos/foto.png"
 
@@ -85,3 +88,97 @@ class ImagenesDeProductoTests(TestCase):
         self.assertIsNone(sin.portada_url)
         self.assertIsNone(sin.imagen_miniatura)
         self.assertEqual(sin.galeria, [])
+
+
+class TecnicoCreaProductosTests(TestCase):
+    """El técnico da de alta productos (solo categorías técnicas, sin precio de compra)."""
+
+    URL = "/tecnico/producto/nuevo/"
+
+    def setUp(self):
+        self.tec_cat = Categoria.objects.create(nombre="Pantallas", es_tecnica=True)
+        self.otra_cat = Categoria.objects.create(nombre="Accesorios", es_tecnica=False)
+        self.tecnico = User.objects.create_user("tec", password="x")
+        self.tecnico.groups.add(Group.objects.get_or_create(name=GRUPO_TECNICO)[0])
+        self.admin = User.objects.create_user("adm", password="x", is_staff=True)
+        self.client.force_login(self.tecnico)
+
+    def datos(self, **extra):
+        d = {"nombre": "Pantalla A10", "sku": "PA10", "categoria": self.tec_cat.pk, "descripcion": "",
+             "precio_venta": "150", "stock": "4", "stock_minimo": "1"}
+        d.update(extra)
+        return d
+
+    def test_el_formulario_no_pide_precio_de_compra(self):
+        r = self.client.get(self.URL)
+        self.assertEqual(r.status_code, 200)
+        self.assertNotIn("precio_compra", r.context["form"].fields)
+        self.assertContains(r, "lo completa el administrador")
+
+    def test_solo_ofrece_categorias_tecnicas(self):
+        r = self.client.get(self.URL)
+        self.assertEqual(list(r.context["form"].fields["categoria"].queryset), [self.tec_cat])
+
+    def test_crea_producto_con_costo_cero_activo_y_stock_como_movimiento(self):
+        r = self.client.post(self.URL, self.datos())
+        self.assertRedirects(r, "/tecnico/", fetch_redirect_response=False)
+        p = Producto.objects.get(sku="PA10")
+        self.assertEqual(p.precio_compra, 0)
+        self.assertTrue(p.activo)
+        self.assertEqual(p.stock, 4)
+        mov = Movimiento.objects.get(producto=p)
+        self.assertEqual((mov.tipo, mov.cantidad, mov.usuario, mov.nota), (Movimiento.ENTRADA, 4, self.tecnico, "Stock inicial"))
+
+    def test_ignora_un_precio_de_compra_enviado_a_mano(self):
+        self.client.post(self.URL, self.datos(precio_compra="99", activo=""))
+        self.assertEqual(Producto.objects.get(sku="PA10").precio_compra, 0)
+
+    def test_rechaza_categoria_no_tecnica(self):
+        r = self.client.post(self.URL, self.datos(categoria=self.otra_cat.pk))
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(Producto.objects.exists())
+
+    def test_sku_repetido_da_error_y_no_duplica(self):
+        self.client.post(self.URL, self.datos())
+        r = self.client.post(self.URL, self.datos(nombre="Otra"))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Producto.objects.count(), 1)
+
+    def test_con_imagen_de_referencia(self):
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO(); Image.new("RGB", (20, 20), "red").save(buf, "PNG")
+        foto = SimpleUploadedFile("f.png", buf.getvalue(), content_type="image/png")
+        with override_settings(MEDIA_ROOT="/tmp/media_tests_tecnico"):
+            self.client.post(self.URL, self.datos(referencias=foto))
+        self.assertEqual(ProductoImagen.objects.filter(producto__sku="PA10").count(), 1)
+
+    def test_sin_categorias_tecnicas_avisa_y_vuelve_al_panel(self):
+        Categoria.objects.filter(es_tecnica=True).update(es_tecnica=False)
+        r = self.client.get(self.URL)
+        self.assertRedirects(r, "/tecnico/", fetch_redirect_response=False)
+
+    def test_el_administrador_va_al_formulario_completo(self):
+        self.client.force_login(self.admin)
+        self.assertRedirects(self.client.get(self.URL), "/productos/nuevo/", fetch_redirect_response=False)
+
+    def test_sin_sesion_va_al_login_y_sin_rol_es_403(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(self.URL).status_code, 302)
+        self.client.force_login(User.objects.create_user("sinrol", password="x"))
+        self.assertEqual(self.client.get(self.URL).status_code, 403)
+
+    def test_el_tecnico_sigue_sin_poder_usar_el_alta_del_administrador(self):
+        r = self.client.post("/productos/nuevo/", self.datos())
+        self.assertRedirects(r, "/tecnico/", fetch_redirect_response=False)
+        self.assertFalse(Producto.objects.exists())
+
+    def test_el_administrador_ve_falta_costo_y_puede_filtrar(self):
+        self.client.post(self.URL, self.datos())
+        Producto.objects.create(nombre="Con costo", categoria=self.otra_cat, precio_compra=5, precio_venta=9)
+        self.client.force_login(self.admin)
+        r = self.client.get("/productos/")
+        self.assertContains(r, "Falta costo")
+        r = self.client.get("/productos/?estado=sin_costo")
+        nombres = [p.nombre for p in r.context["page_obj"]]
+        self.assertEqual(nombres, ["Pantalla A10"])

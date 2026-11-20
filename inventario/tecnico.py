@@ -206,6 +206,50 @@ def tecnico_producto_editar(request, pk):
     return render(request, "productos/form.html", {"form": form, "producto": producto, "modo_tecnico": True})
 
 
+@admin_o_tecnico
+def tecnico_producto_crear(request):
+    """El técnico da de alta productos en las categorías técnicas.
+
+    No ve ni escribe el precio de compra: el producto queda con costo 0 y el
+    administrador lo completa después (en su lista aparece "Falta costo").
+    """
+    if rol_de(request.user) == ADMIN:
+        return redirect("producto_crear")
+
+    if not Categoria.objects.filter(es_tecnica=True).exists():
+        messages.error(request, "Todavía no hay categorías técnicas. Pídele al administrador que marque una como técnica.")
+        return redirect("tecnico_panel")
+
+    form = ProductoTecnicoForm(request.POST or None, request.FILES or None)
+
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            producto = form.save(commit=False)
+            stock_inicial = form.cleaned_data.get("stock") or 0
+            producto.stock = 0
+            producto.precio_compra = Decimal("0")
+            producto.activo = True
+            producto.save()
+            form.guardar_referencias(producto)
+
+            # El stock inicial entra como un movimiento, así queda en el historial
+            if stock_inicial:
+                Movimiento.objects.create(
+                    producto=producto,
+                    tipo=Movimiento.ENTRADA,
+                    cantidad=stock_inicial,
+                    usuario=request.user,
+                    nota="Stock inicial",
+                )
+
+        messages.success(request, f"Producto “{producto.nombre}” creado. El administrador completará su precio de compra.")
+        return redirect("tecnico_panel")
+
+    if request.method == "POST":
+        messages.error(request, "Revisa los campos marcados en rojo.")
+    return render(request, "productos/form.html", {"form": form, "producto": None, "modo_tecnico": True})
+
+
 def _error_json(mensaje, estado=400):
     return JsonResponse({"error": mensaje}, status=estado)
 

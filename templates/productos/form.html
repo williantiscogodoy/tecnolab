@@ -95,6 +95,7 @@
         <div class="fields">
           {% if modo_tecnico %}
           {% include "productos/_campo.html" with field=form.precio_venta prefix="Bs" %}
+          {% if not producto %}<p class="note"><svg class="ico"><use href="#i-info"/></svg><span>El precio de compra lo completa el administrador.</span></p>{% endif %}
           {% else %}
           <div class="fields two">
             {% include "productos/_campo.html" with field=form.precio_compra prefix="Bs" %}
@@ -223,15 +224,15 @@
     var ocupado = 0, esperar = [];
     var info = document.createElement('span');
     info.id = 'imgEstado'; info.setAttribute('role', 'status'); info.hidden = true;
-    info.style.cssText = 'font-size:.82rem;display:block;margin-top:.5rem;opacity:.8';
+    info.style.cssText = 'font-size:.82rem;margin-top:.5rem;opacity:.8;display:none';
     info.textContent = 'Optimizando imágenes…';
     dz.parentNode.insertBefore(info, dz.nextSibling);
     function trabajo(promesa) {
-      ocupado++; info.hidden = false;
+      ocupado++; info.hidden = false; info.style.display = 'block';
       function fin() {
         ocupado--;
         if (!ocupado) {
-          info.hidden = true;
+          info.hidden = true; info.style.display = 'none';
           // Un instante después: así los manejadores de cada foto ya la cambiaron por la reducida
           // antes de reenviar el formulario (si no, se enviaría la original).
           setTimeout(function () { if (!ocupado) esperar.splice(0).forEach(function (f) { f(); }); }, 0);

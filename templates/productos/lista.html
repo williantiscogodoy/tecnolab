@@ -65,6 +65,7 @@
       <option value="activos" {% if estado == 'activos' %}selected{% endif %}>Activos</option>
       <option value="bajo" {% if estado == 'bajo' %}selected{% endif %}>Con stock bajo</option>
       <option value="inactivos" {% if estado == 'inactivos' %}selected{% endif %}>Inactivos</option>
+      <option value="sin_costo" {% if estado == 'sin_costo' %}selected{% endif %}>Sin precio de compra</option>
     </select>
     <button class="btn keep-label" type="submit">Filtrar</button>
     {% if hay_filtros %}<a class="link" href="{% url 'producto_lista' %}">Limpiar</a>{% endif %}
@@ -98,7 +99,7 @@
               {% else %}<div class="thumb ph" aria-hidden="true"><svg class="ico"><use href="#i-image"/></svg></div>{% endif %}
               <div>
                 <button type="button" class="name row-open">{{ p.nombre }}</button>
-                <span class="sub">{% if p.sku %}{{ p.sku }}{% else %}Sin SKU{% endif %}{% if not p.activo %} · <span class="badge off" style="padding:0.05rem 0.45rem">Inactivo</span>{% endif %}</span>
+                <span class="sub">{% if p.sku %}{{ p.sku }}{% else %}Sin SKU{% endif %}{% if not p.activo %} · <span class="badge off" style="padding:0.05rem 0.45rem">Inactivo</span>{% endif %}{% if p.precio_compra == 0 %} · <span class="badge low" style="padding:0.05rem 0.45rem">Falta costo</span>{% endif %}</span>
               </div>
             </div>
           </td>
@@ -139,6 +140,7 @@
               {% if p.categoria.es_tecnica %}<span class="badge tec">Técnico</span>{% endif %}
               <span>{{ p.categoria.nombre }}</span>
               {% if not p.activo %}<span class="badge off">Inactivo</span>{% endif %}
+              {% if p.precio_compra == 0 %}<span class="badge low">Falta costo</span>{% endif %}
             </div>
           </div>
         </div>

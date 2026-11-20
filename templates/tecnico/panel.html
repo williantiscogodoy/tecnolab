@@ -66,6 +66,9 @@
 {% endblock %}
 
 {% block actions %}
+<a class="btn" href="{% url 'tecnico_producto_crear' %}" aria-label="Nuevo producto">
+  <svg class="ico"><use href="#i-box"/></svg><span>Nuevo producto</span>
+</a>
 <a class="btn primary" href="{% url 'reparacion_crear' %}" aria-label="Nueva reparación">
   <svg class="ico"><use href="#i-plus"/></svg><span>Nueva reparación</span>
 </a>

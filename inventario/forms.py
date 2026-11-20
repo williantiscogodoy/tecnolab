@@ -121,7 +121,7 @@ class ProductoForm(forms.ModelForm):
 
 
 class ProductoTecnicoForm(ProductoForm):
-    """Edición de un producto por el técnico: sin precio de compra, sin cambiar categoría ni activarlo/desactivarlo."""
+    """Alta y edición de un producto por el técnico: sin precio de compra, sin cambiar categoría ni activarlo/desactivarlo."""
     precio_compra = None  # quita el campo heredado: el técnico no ve ni modifica el precio de compra
 
     class Meta(ProductoForm.Meta):
@@ -132,8 +132,12 @@ class ProductoTecnicoForm(ProductoForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # La categoría solo se muestra: así el producto no sale de las categorías técnicas
-        self.fields["categoria"].disabled = True
+        if self.instance.pk:
+            # Al editar, la categoría solo se muestra: así el producto no sale de las categorías técnicas
+            self.fields["categoria"].disabled = True
+        else:
+            # Al crear, solo puede elegir entre las categorías técnicas
+            self.fields["categoria"].queryset = Categoria.objects.filter(es_tecnica=True).order_by("nombre")
 
 
 # ============================== Categorías ==============================
