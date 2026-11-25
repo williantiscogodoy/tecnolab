@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Lista #{{ lista.pk }}{% endblock %}
+{% block page_title %}Lista de reposición #{{ lista.pk }}{% endblock %}
+{% block page_sub %}<span class="date">Creada por {{ lista.creado_por.get_username|default:"—" }} · {{ lista.creado_en|date:"d/m/Y H:i" }}</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .head-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+  .stats { display: flex; flex-wrap: wrap; gap: 1.6rem; }
+  .stats small { display: block; color: var(--muted); font-size: 0.8rem; font-weight: 600; }
+  .stats strong { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .stats .u { color: var(--muted); font-size: 0.8rem; font-weight: 500; margin-left: 0.2rem; }
+  .head-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+  .head-actions form { margin: 0; }
+  .nota-info { display: flex; gap: 0.6rem; align-items: flex-start; margin-top: 1rem; padding: 0.7rem 0.9rem; border-radius: var(--radius-sm); background: rgba(59, 130, 246, 0.1); color: var(--text); font-size: 0.88rem; }
+  .nota-info .ico { width: 18px; height: 18px; flex: none; color: var(--primary); margin-top: 0.1rem; }
+
+  .picker-bar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-bottom: 1rem; }
+  .picker-bar .search { position: relative; flex: 1 1 240px; min-width: 0; }
+  .picker-bar .search .ico { position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--muted); width: 18px; height: 18px; pointer-events: none; }
+  .picker-bar .search .input { padding-left: 2.6rem; }
+  .chip-link { display: inline-flex; align-items: center; padding: 0.5rem 0.95rem; border-radius: 999px; font-size: 0.86rem; font-weight: 600; color: var(--muted); border: 1px solid var(--border); }
+  .chip-link:hover { color: var(--text); background: var(--hover); }
+  .chip-link[aria-current="true"] { color: var(--primary); border-color: rgba(59, 130, 246, 0.45); background: rgba(59, 130, 246, 0.12); }
+  .count-note { color: var(--muted); font-size: 0.84rem; margin: 0 0 0.9rem; }
+
+  .cands { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 0.9rem; }
+  .cand { display: grid; gap: 0.7rem; padding: 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+  .cand-top { display: flex; gap: 0.8rem; align-items: center; }
+  .thumb { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; flex: none; background: var(--hover); }
+  .thumb.ph { display: grid; place-items: center; color: var(--muted); }
+  .cand h3 { margin: 0; font-size: 0.95rem; font-weight: 700; line-height: 1.25; }
+  .cand .meta { color: var(--muted); font-size: 0.8rem; }
+  .facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem 0.9rem; font-size: 0.84rem; }
+  .facts span { color: var(--muted); display: block; font-size: 0.74rem; font-weight: 600; }
+  .facts b { font-variant-numeric: tabular-nums; }
+  .add-form { display: flex; gap: 0.5rem; align-items: flex-end; }
+  .add-form label { display: grid; gap: 0.2rem; font-size: 0.74rem; color: var(--muted); font-weight: 600; flex: 1; }
+  .add-form .input { width: 100%; }
+  .qty-in { width: 84px; text-align: center; font-variant-numeric: tabular-nums; }
+
+  .cell-prod { display: flex; gap: 0.7rem; align-items: center; }
+  .qty-form { display: inline-flex; gap: 0.35rem; align-items: center; margin: 0; }
+  .qty-form .input { width: 76px; padding: 0.4rem 0.5rem; text-align: center; }
+  .mini-btn { width: 36px; height: 36px; display: inline-grid; place-items: center; flex: none; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+  .mini-btn:hover { background: var(--hover); }
+  .mini-btn.is-danger:hover { color: var(--danger); border-color: var(--danger); }
+  .mini-btn .ico { width: 17px; height: 17px; }
+  @media (max-width: 640px) {
+    .cell-prod .thumb, .cell-prod .thumb.ph { display: none; }
+    .table-wrap th, .table-wrap td { padding-left: 0.4rem !important; padding-right: 0.4rem !important; }
+    .qty-form .input { width: 62px; padding-left: 0.25rem; padding-right: 0.25rem; }
+    .qty-form { gap: 0.25rem; }
+    .row-actions { gap: 0.25rem; }
+  }
+  .row-actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
+  .row-actions form { margin: 0; }
+  .stock-line { font-variant-numeric: tabular-nums; }
+  .stock-line .min { color: var(--muted); font-size: 0.8rem; }
+  .badge.in { background: var(--ok-bg); color: var(--ok); }
+  :root[data-theme="light"] .badge.in { color: #047857; }
+  .total-row td { font-weight: 700; border-top: 1px solid var(--border); }
+  .empty form { display: inline; }
+</style>
+{% endblock %}
+
+{% block actions %}
+<a class="btn" href="{% url 'reposicion_lista' %}" aria-label="Volver a las listas"><svg class="ico"><use href="#i-arrow-left"/></svg><span>Listas</span></a>
+{% endblock %}
+
+{% block content %}
+<section class="panel reveal" style="--i:1">
+  <div class="head-row">
+    <div class="stats">
+      <div>
+        <small>Estado</small>
+        {% if lista.estado == 'ABIERTA' %}<span class="badge low">Abierta</span>
+        {% elif lista.estado == 'RECIBIDA' %}<span class="badge in">Recibida</span>
+        {% else %}<span class="badge off">Cancelada</span>{% endif %}
+      </div>
+      <div><small>Productos</small><strong>{{ n_productos }}</strong></div>
+      <div><small>Unidades a traer</small><strong>{{ unidades }}<span class="u">u.</span></strong></div>
+      {% if lista.estado == 'RECIBIDA' %}<div><small>Llegaron</small><strong>{{ recibidas }}<span class="u">u.</span></strong></div>{% endif %}
+      {% if es_admin and lista.abierta %}<div><small>Costo estimado</small><strong>Bs {{ costo_estimado|floatformat:"2g" }}</strong></div>{% endif %}
+    </div>
+    <div class="head-actions">
+      {% if lista.abierta and es_admin and n_productos %}
+      <a class="btn primary keep-label" href="{% url 'reposicion_recibir' lista.pk %}"><svg class="ico"><use href="#i-check"/></svg><span>Recibir productos</span></a>
+      {% endif %}
+      {% if puede_cancelar %}
+      <form method="post" action="{% url 'reposicion_cancelar' lista.pk %}" data-confirm="¿Cancelar la lista #{{ lista.pk }}? No se sumará nada al stock.">{% csrf_token %}
+        <button class="btn danger keep-label" type="submit"><svg class="ico"><use href="#i-x"/></svg><span>Cancelar lista</span></button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if lista.abierta and not es_admin %}
+  <p class="nota-info"><svg class="ico"><use href="#i-info"/></svg><span>Agrega aquí lo que necesites. Cuando lleguen los productos, el administrador revisa la lista y confirma lo recibido.</span></p>
+  {% elif lista.estado == 'RECIBIDA' %}
+  <p class="nota-info"><svg class="ico"><use href="#i-check"/></svg><span>Recibida por {{ lista.cerrado_por.get_username|default:"—" }} el {{ lista.cerrado_en|date:"d/m/Y H:i" }}. Lo recibido ya se sumó al stock.</span></p>
+  {% elif lista.estado == 'CANCELADA' %}
+  <p class="nota-info"><svg class="ico"><use href="#i-info"/></svg><span>Cancelada por {{ lista.cerrado_por.get_username|default:"—" }} el {{ lista.cerrado_en|date:"d/m/Y H:i" }}. No se sumó nada al stock.</span></p>
+  {% endif %}
+</section>
+
+{% if lista.abierta %}
+<section class="panel reveal" style="--i:2" aria-labelledby="t-agregar">
+  <div class="panel-head"><div><h2 id="t-agregar">Agregar productos</h2><p>Elige un producto para ver su stock y precio, y escribe cuántos se van a traer</p></div></div>
+
+  <form class="picker-bar" method="get" action="{% url 'reposicion_detalle' lista.pk %}" role="search">
+    <input type="hidden" name="ver" value="{{ ver }}">
+    <div class="search">
+      <svg class="ico"><use href="#i-search"/></svg>
+      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre o SKU" aria-label="Buscar producto">
+    </div>
+    <button class="btn keep-label" type="submit">Buscar</button>
+    <a class="chip-link" href="?ver=bajo" {% if not q and ver == 'bajo' %}aria-current="true"{% endif %}>Stock bajo</a>
+    <a class="chip-link" href="?ver=todos" {% if not q and ver == 'todos' %}aria-current="true"{% endif %}>Todos</a>
+    {% if q %}<a class="link" href="?ver={{ ver }}">Limpiar</a>{% endif %}
+  </form>
+
+  {% if resultados %}
+  <p class="count-note">
+    {% if q %}Resultados para “{{ q }}”{% elif ver == 'bajo' %}Productos con stock bajo (los más urgentes primero){% else %}Todos los productos{% endif %}:
+    mostrando {{ resultados|length }} de {{ total_candidatos }}{% if total_candidatos > resultados|length %}. Usa el buscador para encontrar otros.{% endif %}
+  </p>
+  <div class="cands">
+    {% for p in resultados %}
+    <article class="cand">
+      <div class="cand-top">
+        {% if p.portada_url %}<img class="thumb" src="{{ p.portada_url }}" alt="" loading="lazy">
+        {% else %}<div class="thumb ph" aria-hidden="true"><svg class="ico"><use href="#i-image"/></svg></div>{% endif %}
+        <div>
+          <h3>{{ p.nombre }}</h3>
+          <span class="meta">{% if p.sku %}{{ p.sku }} · {% endif %}{{ p.categoria.nombre }}</span>
+        </div>
+      </div>
+      <div class="facts">
+        <div><span>Stock actual</span><b>{{ p.stock }}</b> {% if p.stock == 0 %}<span class="badge out" style="display:inline">Agotado</span>{% elif p.stock <= p.stock_minimo %}<span class="badge low" style="display:inline">Bajo</span>{% endif %}</div>
+        <div><span>Stock mínimo</span><b>{{ p.stock_minimo }}</b></div>
+        <div><span>Precio de venta</span><b>Bs {{ p.precio_venta|floatformat:"2g" }}</b></div>
+        {% if es_admin %}<div><span>Precio de compra</span><b>Bs {{ p.precio_compra|floatformat:"2g" }}</b></div>{% endif %}
+      </div>
+      <form class="add-form" method="post" action="{% url 'reposicion_agregar' lista.pk %}">{% csrf_token %}
+        <input type="hidden" name="producto" value="{{ p.pk }}">
+        <input type="hidden" name="q" value="{{ q }}">
+        <input type="hidden" name="ver" value="{{ ver }}">
+        <label>Cantidad a traer
+          <input class="input qty-in" type="number" name="cantidad" value="{{ p.sugerido }}" min="1" max="100000" inputmode="numeric" required>
+        </label>
+        <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-plus"/></svg><span>Agregar</span></button>
+      </form>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty static">
+    <svg class="ico"><use href="#i-search"/></svg>
+    {% if q %}
+      <strong>No encontré productos para “{{ q }}”</strong>
+      Revisa la ortografía o prueba con el SKU. Los productos que ya están en la lista no se repiten aquí.
+    {% elif ver == 'bajo' %}
+      <strong>No hay más productos con stock bajo</strong>
+      Todos los que están bajos ya están en la lista. Usa “Todos” o el buscador para pedir otros.
+    {% else %}
+      <strong>No hay más productos para agregar</strong>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="panel reveal" style="--i:3" aria-labelledby="t-lista">
+  <div class="panel-head"><div><h2 id="t-lista">Productos de la lista</h2><p>{% if lista.abierta %}Puedes cambiar la cantidad o quitar lo que pediste{% else %}Lo que se pidió{% if lista.estado == 'RECIBIDA' %} y lo que llegó{% endif %}{% endif %}</p></div></div>
+
+  {% if items %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th class="hide-sm">Stock</th>
+          <th class="hide-md num">Precio{% if es_admin %} venta / compra{% endif %}</th>
+          <th class="num">A traer</th>
+          {% if lista.estado == 'RECIBIDA' %}<th class="num">Llegaron</th><th>Resultado</th>{% endif %}
+          <th class="hide-md">Pidió</th>
+          {% if lista.abierta %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td>
+            <div class="cell-prod">
+              {% if it.producto.portada_url %}<img class="thumb" src="{{ it.producto.portada_url }}" alt="" loading="lazy">
+              {% else %}<div class="thumb ph" aria-hidden="true"><svg class="ico"><use href="#i-image"/></svg></div>{% endif %}
+              <div><span class="name">{{ it.producto.nombre }}</span><span class="sub">{% if it.producto.sku %}{{ it.producto.sku }} · {% endif %}{{ it.producto.categoria.nombre }}</span></div>
+            </div>
+          </td>
+          <td class="hide-sm stock-line">{{ it.producto.stock }} <span class="min">/ mín. {{ it.producto.stock_minimo }}</span></td>
+          <td class="hide-md num">Bs {{ it.producto.precio_venta|floatformat:"2g" }}{% if es_admin %} <span class="sub">compra Bs {{ it.producto.precio_compra|floatformat:"2g" }}</span>{% endif %}</td>
+          <td class="num">
+            {% if it.editable %}
+            <form class="qty-form" method="post" action="{% url 'reposicion_item_editar' lista.pk it.pk %}">{% csrf_token %}
+              <input class="input" type="number" name="cantidad" value="{{ it.cantidad_pedida }}" min="1" max="100000" inputmode="numeric" aria-label="Cantidad a traer de {{ it.producto.nombre }}" required>
+              <button class="mini-btn" type="submit" aria-label="Guardar cantidad"><svg class="ico"><use href="#i-check"/></svg></button>
+            </form>
+            {% else %}<strong>{{ it.cantidad_pedida }}</strong>{% endif %}
+          </td>
+          {% if lista.estado == 'RECIBIDA' %}
+          <td class="num"><strong>{{ it.cantidad_recibida|default_if_none:0 }}</strong></td>
+          <td>
+            {% if it.resultado == 'completo' %}<span class="badge in">Completo</span>
+            {% elif it.resultado == 'parcial' %}<span class="badge low">Faltaron {% widthratio it.diferencia 1 -1 %}</span>
+            {% elif it.resultado == 'de_mas' %}<span class="badge tec">{{ it.diferencia }} de más</span>
+            {% else %}<span class="badge out">No llegó</span>{% endif %}
+          </td>
+          {% endif %}
+          <td class="hide-md">{{ it.pedido_por.get_username|default:"—" }}</td>
+          {% if lista.abierta %}
+          <td>
+            {% if it.editable %}
+            <div class="row-actions">
+              <form method="post" action="{% url 'reposicion_item_quitar' lista.pk it.pk %}" data-confirm="¿Quitar “{{ it.producto.nombre }}” de la lista?">{% csrf_token %}
+                <button class="mini-btn is-danger" type="submit" aria-label="Quitar {{ it.producto.nombre }}"><svg class="ico"><use href="#i-trash"/></svg></button>
+              </form>
+            </div>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty static">
+    <svg class="ico"><use href="#i-list"/></svg>
+    <strong>La lista está vacía</strong>
+    {% if lista.abierta %}Busca un producto arriba y agrégalo con la cantidad que se va a traer.{% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('form[data-confirm]').forEach(function (f) {
+    f.addEventListener('submit', function (e) { if (!window.confirm(f.dataset.confirm)) e.preventDefault(); });
+  });
+  // Evita agregar dos veces el mismo producto con un doble clic
+  document.querySelectorAll('.add-form').forEach(function (f) {
+    f.addEventListener('submit', function () {
+      var b = f.querySelector('button[type="submit"]');
+      setTimeout(function () { b.disabled = true; }, 0);
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Recibir lista #{{ lista.pk }}{% endblock %}
+{% block page_title %}Recibir lista #{{ lista.pk }}{% endblock %}
+{% block page_sub %}<span class="date">Revisa qué llegó y confirma para sumarlo al stock</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .quick { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
+  .quick small { color: var(--muted); }
+  .cell-prod { display: flex; gap: 0.7rem; align-items: center; }
+  .thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; flex: none; background: var(--hover); }
+  .thumb.ph { display: grid; place-items: center; color: var(--muted); }
+  .chk { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; cursor: pointer; }
+  .chk input { width: 22px; height: 22px; accent-color: var(--primary); cursor: pointer; }
+  .cant { width: 92px; text-align: center; font-variant-numeric: tabular-nums; }
+  .cant:disabled { opacity: 0.45; }
+  tr.no-llego td .name { opacity: 0.6; }
+  .err-msg { display: block; color: var(--danger); font-size: 0.78rem; margin-top: 0.25rem; }
+  .cant.is-error { border-color: var(--danger); }
+  .stock-line { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .stock-line .arrow { color: var(--muted); }
+  .badge.in { background: var(--ok-bg); color: var(--ok); }
+  :root[data-theme="light"] .badge.in { color: #047857; }
+  .res-m { display: none; margin-top: 0.3rem; }
+  @media (max-width: 640px) {
+    .thumb, .thumb.ph { display: none; }
+    .res-m { display: block; }
+    th, td { padding-left: 0.45rem !important; padding-right: 0.45rem !important; }
+    .cant { width: 72px; padding-left: 0.3rem; padding-right: 0.3rem; }
+  }
+  .sumbar { position: sticky; bottom: 0.8rem; z-index: 5; display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: center; justify-content: space-between; margin-top: 1.2rem; padding: 0.9rem 1.1rem; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); }
+  .sumbar strong { font-variant-numeric: tabular-nums; }
+  .sumbar .btns { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  .sumbar button[disabled] { opacity: 0.5; cursor: not-allowed; }
+</style>
+{% endblock %}
+
+{% block actions %}
+<a class="btn" href="{% url 'reposicion_detalle' lista.pk %}" aria-label="Volver a la lista"><svg class="ico"><use href="#i-arrow-left"/></svg><span>Volver</span></a>
+{% endblock %}
+
+{% block content %}
+<section class="panel reveal" style="--i:1">
+  <div class="panel-head"><div><h2>¿Qué llegó?</h2><p>Quita la marca a lo que no llegó y cambia la cantidad si llegaron menos (o más). Al confirmar se suma al stock.</p></div></div>
+
+  <form method="post" action="{% url 'reposicion_recibir' lista.pk %}" id="form-recibir">{% csrf_token %}
+    <div class="quick">
+      <button class="btn keep-label" type="button" id="todos">Todo llegó completo</button>
+      <button class="btn keep-label" type="button" id="ninguno">Quitar todas las marcas</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Llegó</th><th>Producto</th><th class="num">Pedido</th><th class="num">Llegaron</th><th class="hide-sm">Resultado</th><th class="hide-sm">Stock</th></tr>
+        </thead>
+        <tbody>
+          {% for f in filas %}
+          <tr data-pedida="{{ f.item.cantidad_pedida }}" data-stock="{{ f.item.producto.stock }}">
+            <td>
+              <input type="hidden" name="item" value="{{ f.item.pk }}">
+              <label class="chk"><input class="chk-in" type="checkbox" name="llego_{{ f.item.pk }}" {% if f.llego %}checked{% endif %}> <span class="hide-sm">Llegó</span></label>
+            </td>
+            <td>
+              <div class="cell-prod">
+                {% if f.item.producto.portada_url %}<img class="thumb" src="{{ f.item.producto.portada_url }}" alt="" loading="lazy">
+                {% else %}<div class="thumb ph" aria-hidden="true"><svg class="ico"><use href="#i-image"/></svg></div>{% endif %}
+                <div><span class="name">{{ f.item.producto.nombre }}</span><span class="sub">{% if f.item.producto.sku %}{{ f.item.producto.sku }}{% else %}{{ f.item.producto.categoria.nombre }}{% endif %}</span><span class="res-m"></span></div>
+              </div>
+            </td>
+            <td class="num"><strong>{{ f.item.cantidad_pedida }}</strong></td>
+            <td class="num">
+              <input class="input cant {% if f.error %}is-error{% endif %}" type="number" name="cant_{{ f.item.pk }}" value="{{ f.cantidad }}" min="0" max="100000" inputmode="numeric" aria-label="Cantidad que llegó de {{ f.item.producto.nombre }}">
+              {% if f.error %}<span class="err-msg">{{ f.error }}</span>{% endif %}
+            </td>
+            <td class="resultado hide-sm"></td>
+            <td class="hide-sm stock-line"><span class="stock-ahora">{{ f.item.producto.stock }}</span> <span class="arrow">→</span> <strong class="stock-nuevo">{{ f.item.producto.stock }}</strong></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sumbar" role="status" aria-live="polite">
+      <span id="resumen">Se sumarán <strong id="r-unidades">0</strong> unidad(es) de <strong id="r-productos">0</strong> producto(s)</span>
+      <div class="btns">
+        <a class="btn keep-label" href="{% url 'reposicion_detalle' lista.pk %}">Cancelar</a>
+        <button class="btn primary keep-label" type="submit" id="confirmar"><svg class="ico"><use href="#i-check"/></svg><span>Confirmar y sumar al stock</span></button>
+      </div>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var form = document.getElementById('form-recibir');
+    var filas = Array.prototype.slice.call(form.querySelectorAll('tbody tr'));
+    var boton = document.getElementById('confirmar');
+    var totales = { u: 0, p: 0 };
+
+    function etiqueta(clase, texto) { return '<span class="badge ' + clase + '">' + texto + '</span>'; }
+
+    function actualizar() {
+      var u = 0, p = 0;
+      filas.forEach(function (tr) {
+        var chk = tr.querySelector('.chk-in'), inp = tr.querySelector('.cant');
+        var pedida = parseInt(tr.dataset.pedida, 10), stock = parseInt(tr.dataset.stock, 10);
+        inp.disabled = !chk.checked;
+        var n = chk.checked ? Math.max(0, parseInt(inp.value, 10) || 0) : 0;
+        var html;
+        if (n === 0) html = etiqueta('out', 'No llegó');
+        else if (n < pedida) html = etiqueta('low', 'Faltan ' + (pedida - n));
+        else if (n > pedida) html = etiqueta('tec', (n - pedida) + ' de más');
+        else html = etiqueta('in', 'Completo');
+        tr.querySelector('.resultado').innerHTML = html;
+        tr.querySelector('.res-m').innerHTML = html;
+        tr.classList.toggle('no-llego', n === 0);
+        tr.querySelector('.stock-nuevo').textContent = stock + n;
+        u += n; if (n > 0) p++;
+      });
+      totales.u = u; totales.p = p;
+      document.getElementById('r-unidades').textContent = u;
+      document.getElementById('r-productos').textContent = p;
+      boton.disabled = u === 0;
+    }
+
+    filas.forEach(function (tr) {
+      var chk = tr.querySelector('.chk-in'), inp = tr.querySelector('.cant');
+      chk.addEventListener('change', function () {
+        // Al marcar de nuevo un producto vacío, se propone lo que se pidió
+        if (chk.checked && !(parseInt(inp.value, 10) > 0)) inp.value = tr.dataset.pedida;
+        actualizar();
+      });
+      inp.addEventListener('input', actualizar);
+    });
+
+    document.getElementById('todos').addEventListener('click', function () {
+      filas.forEach(function (tr) { tr.querySelector('.chk-in').checked = true; tr.querySelector('.cant').value = tr.dataset.pedida; });
+      actualizar();
+    });
+    document.getElementById('ninguno').addEventListener('click', function () {
+      filas.forEach(function (tr) { tr.querySelector('.chk-in').checked = false; });
+      actualizar();
+    });
+
+    form.addEventListener('submit', function (e) {
+      if (totales.u === 0) { e.preventDefault(); return; }
+      var ok = window.confirm('¿Confirmar la llegada?\n\nSe sumarán ' + totales.u + ' unidad(es) de ' + totales.p +
+        ' producto(s) al stock. Después no se puede deshacer.');
+      if (!ok) { e.preventDefault(); return; }
+      setTimeout(function () { boton.disabled = true; }, 0);   // evita sumar dos veces con un doble clic
+    });
+
+    actualizar();
+  })();
+</script>
+{% endblock %}

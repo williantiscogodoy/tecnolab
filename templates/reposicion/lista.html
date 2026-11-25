@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Reposición{% endblock %}
+{% block page_title %}Reposición{% endblock %}
+{% block page_sub %}<span class="date">Listas de productos por reponer</span>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .actions form { display: contents; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+  .tab { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.5rem 0.95rem; border-radius: 999px; font-size: 0.88rem; font-weight: 600; color: var(--muted); border: 1px solid var(--border); }
+  .tab:hover { color: var(--text); background: var(--hover); }
+  .tab[aria-current="true"] { color: var(--primary); border-color: rgba(59, 130, 246, 0.45); background: rgba(59, 130, 246, 0.12); }
+  .tab .n { font-size: 0.78rem; opacity: 0.8; font-variant-numeric: tabular-nums; }
+  .badge.in { background: var(--ok-bg); color: var(--ok); }
+  :root[data-theme="light"] .badge.in { color: #047857; }
+  .lista-link { font-weight: 700; }
+  .pager { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.88rem; color: var(--muted); }
+  .pager .btns { display: flex; gap: 0.5rem; }
+  .btn[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
+  .empty form { display: inline; }
+</style>
+{% endblock %}
+
+{% block actions %}
+<form method="post" action="{% url 'reposicion_crear' %}">{% csrf_token %}
+  <input type="hidden" name="bajos" value="1">
+  <button class="btn" type="submit" aria-label="Nueva lista con los productos de stock bajo"><svg class="ico"><use href="#i-alert"/></svg><span>Con stock bajo</span></button>
+</form>
+<form method="post" action="{% url 'reposicion_crear' %}">{% csrf_token %}
+  <button class="btn primary" type="submit" aria-label="Nueva lista vacía"><svg class="ico"><use href="#i-plus"/></svg><span>Nueva lista</span></button>
+</form>
+{% endblock %}
+
+{% block content %}
+<section class="panel reveal" style="--i:1">
+  <nav class="tabs" aria-label="Estado de las listas">
+    <a class="tab" href="?estado=abiertas" {% if estado == 'abiertas' %}aria-current="true"{% endif %}>Abiertas <span class="n">{{ n_abiertas }}</span></a>
+    <a class="tab" href="?estado=recibidas" {% if estado == 'recibidas' %}aria-current="true"{% endif %}>Recibidas <span class="n">{{ n_recibidas }}</span></a>
+    <a class="tab" href="?estado=canceladas" {% if estado == 'canceladas' %}aria-current="true"{% endif %}>Canceladas <span class="n">{{ n_canceladas }}</span></a>
+  </nav>
+
+  {% if page_obj %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Lista</th><th>Creada por</th><th class="num">Productos</th>
+          <th class="num">{% if estado == 'recibidas' %}Pedidas / llegaron{% else %}Unidades a traer{% endif %}</th>
+          <th>Estado</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in page_obj %}
+        <tr>
+          <td style="white-space:nowrap"><a class="name lista-link" href="{% url 'reposicion_detalle' l.pk %}">Lista #{{ l.pk }}</a><span class="sub">{{ l.creado_en|date:"d/m/Y H:i" }}</span></td>
+          <td>{{ l.creado_por.get_username|default:"—" }}</td>
+          <td class="num">{{ l.n_productos }}</td>
+          <td class="num">{% if estado == 'recibidas' %}{{ l.u_pedidas|default:0 }} / <strong>{{ l.u_recibidas|default:0 }}</strong>{% else %}{{ l.u_pedidas|default:0 }}{% endif %}</td>
+          <td>
+            {% if l.estado == 'ABIERTA' %}<span class="badge low">Abierta</span>
+            {% elif l.estado == 'RECIBIDA' %}<span class="badge in">Recibida</span>
+            {% else %}<span class="badge off">Cancelada</span>{% endif %}
+          </td>
+          <td class="num"><a class="btn keep-label" href="{% url 'reposicion_detalle' l.pk %}">Abrir</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pager">
+    <span>Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
+    <div class="btns">
+      <a class="btn keep-label" href="?estado={{ estado }}&page={{ page_obj.previous_page_number|default:1 }}" {% if not page_obj.has_previous %}aria-disabled="true" tabindex="-1"{% endif %}>Anterior</a>
+      <a class="btn keep-label" href="?estado={{ estado }}&page={{ page_obj.next_page_number|default:page_obj.number }}" {% if not page_obj.has_next %}aria-disabled="true" tabindex="-1"{% endif %}>Siguiente</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="empty static">
+    <svg class="ico"><use href="#i-list"/></svg>
+    {% if estado == 'abiertas' %}
+      <strong>No hay listas abiertas</strong>
+      Crea una lista para pedir los productos que se están acabando.
+      <form method="post" action="{% url 'reposicion_crear' %}">{% csrf_token %}
+        <input type="hidden" name="bajos" value="1">
+        <button class="btn primary keep-label" type="submit"><svg class="ico"><use href="#i-alert"/></svg><span>Crear con los de stock bajo</span></button>
+      </form>
+    {% elif estado == 'recibidas' %}
+      <strong>Aún no hay listas recibidas</strong>
+      Aparecerán aquí cuando el administrador confirme la llegada de una lista.
+    {% else %}
+      <strong>No hay listas canceladas</strong>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

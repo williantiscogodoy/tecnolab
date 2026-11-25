@@ -102,7 +102,13 @@
   <article class="panel reveal" style="--i:7">
     <div class="panel-head">
       <div><h2>Productos con stock bajo</h2><p>Los más urgentes primero</p></div>
-      <a class="link" href="{% url 'producto_lista' %}?estado=bajo">Ver todos</a>
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <form method="post" action="{% url 'reposicion_crear' %}" style="margin:0">{% csrf_token %}
+          <input type="hidden" name="bajos" value="1">
+          <button class="btn keep-label" type="submit"><svg class="ico"><use href="#i-list"/></svg><span>Crear lista de reposición</span></button>
+        </form>
+        <a class="link" href="{% url 'producto_lista' %}?estado=bajo">Ver todos</a>
+      </div>
     </div>
     {% if bajo_stock %}
     <div class="table-wrap">

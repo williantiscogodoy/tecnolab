@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import clientes, personal, reparaciones, tecnico, views
+from . import clientes, personal, reparaciones, reposicion, tecnico, views
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
@@ -31,6 +31,14 @@ urlpatterns = [
     path("tecnico/", tecnico.tecnico_panel, name="tecnico_panel"),
     path("tecnico/retirar/<int:pk>/", tecnico.tecnico_retirar, name="tecnico_retirar"),
     path("tecnico/producto/<int:pk>/", tecnico.tecnico_producto, name="tecnico_producto"),
+    path("reposicion/", reposicion.reposicion_lista, name="reposicion_lista"),
+    path("reposicion/nueva/", reposicion.reposicion_crear, name="reposicion_crear"),
+    path("reposicion/<int:pk>/", reposicion.reposicion_detalle, name="reposicion_detalle"),
+    path("reposicion/<int:pk>/agregar/", reposicion.reposicion_agregar, name="reposicion_agregar"),
+    path("reposicion/<int:pk>/item/<int:item_id>/editar/", reposicion.reposicion_item_editar, name="reposicion_item_editar"),
+    path("reposicion/<int:pk>/item/<int:item_id>/quitar/", reposicion.reposicion_item_quitar, name="reposicion_item_quitar"),
+    path("reposicion/<int:pk>/cancelar/", reposicion.reposicion_cancelar, name="reposicion_cancelar"),
+    path("reposicion/<int:pk>/recibir/", reposicion.reposicion_recibir, name="reposicion_recibir"),
     path("tecnico/producto/nuevo/", tecnico.tecnico_producto_crear, name="tecnico_producto_crear"),
     path("tecnico/producto/<int:pk>/editar/", tecnico.tecnico_producto_editar, name="tecnico_producto_editar"),
     path("tecnico/producto/<int:pk>/compatibles/buscar/", tecnico.tecnico_compat_buscar, name="tecnico_compat_buscar"),

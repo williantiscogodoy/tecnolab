@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -356,3 +357,82 @@ class CajaMovimiento(models.Model):
 
     def __str__(self):
         return f"{self.get_caja_display()}: Bs {self.monto} ({self.concepto})"
+
+
+class Reposicion(models.Model):
+    """Lista de productos por reponer.
+
+    Se arma (cualquiera puede pedir), se compra, y cuando llegan el administrador
+    revisa qué llegó y cuánto: al confirmar, las cantidades se suman al stock.
+    """
+    ABIERTA = "ABIERTA"
+    RECIBIDA = "RECIBIDA"
+    CANCELADA = "CANCELADA"
+    ESTADOS = [(ABIERTA, "Abierta"), (RECIBIDA, "Recibida"), (CANCELADA, "Cancelada")]
+
+    estado = models.CharField(max_length=10, choices=ESTADOS, default=ABIERTA, db_index=True)
+    nota = models.CharField(max_length=200, blank=True)
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="reposiciones_creadas",
+    )
+    creado_en = models.DateTimeField(default=timezone.now)
+    cerrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="reposiciones_cerradas",
+    )
+    cerrado_en = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-creado_en", "-pk"]
+        verbose_name = "lista de reposición"
+        verbose_name_plural = "listas de reposición"
+
+    def __str__(self):
+        return f"Lista de reposición #{self.pk}"
+
+    @property
+    def abierta(self):
+        return self.estado == self.ABIERTA
+
+
+class ReposicionItem(models.Model):
+    """Un producto dentro de una lista: cuántos se van a traer y, al recibirla, cuántos llegaron."""
+    reposicion = models.ForeignKey(Reposicion, on_delete=models.CASCADE, related_name="items")
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, related_name="reposicion_items")
+    cantidad_pedida = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    cantidad_recibida = models.PositiveIntegerField(null=True, blank=True)  # vacío hasta revisar la llegada
+    pedido_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="reposicion_items",
+    )
+    creado_en = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["producto__nombre"]
+        constraints = [
+            models.UniqueConstraint(fields=["reposicion", "producto"], name="reposicion_producto_unico"),
+        ]
+
+    def __str__(self):
+        return f"{self.cantidad_pedida} × {self.producto.nombre}"
+
+    @property
+    def resultado(self):
+        """Cómo llegó: None mientras no se revise."""
+        if self.cantidad_recibida is None:
+            return None
+        if self.cantidad_recibida == 0:
+            return "no_llego"
+        if self.cantidad_recibida < self.cantidad_pedida:
+            return "parcial"
+        if self.cantidad_recibida > self.cantidad_pedida:
+            return "de_mas"
+        return "completo"
+
+    @property
+    def diferencia(self):
+        """Recibidas menos pedidas (negativo = faltaron). None si aún no se revisa."""
+        if self.cantidad_recibida is None:
+            return None
+        return self.cantidad_recibida - self.cantidad_pedida
