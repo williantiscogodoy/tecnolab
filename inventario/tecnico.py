@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import floatformat
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.timezone import localtime
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -396,3 +397,20 @@ def tecnico_retirar(request, pk):
                 f"Retiraste {cantidad} × “{producto.nombre}” para {cliente.nombre}. {aviso} Quedan {producto.stock}.",
             )
     return redirect(destino)
+
+
+@admin_o_tecnico
+@require_POST
+def producto_actualizar_fecha(request, pk):
+    """Pone la fecha del precio de venta en este momento, sin cambiar el precio.
+
+    El administrador puede hacerlo con cualquier producto; el técnico, solo con los
+    activos de categorías técnicas (las mismas reglas que para editarlos).
+    """
+    es_admin = rol_de(request.user) == ADMIN
+    productos = Producto.objects.all() if es_admin else Producto.objects.filter(activo=True, categoria__es_tecnica=True)
+    producto = get_object_or_404(productos, pk=pk)
+    # update() y no save(): así no se toca nada más que la fecha
+    Producto.objects.filter(pk=producto.pk).update(precio_venta_actualizado=timezone.now())
+    messages.success(request, f"Fecha del precio de “{producto.nombre}” actualizada. El precio no cambió.")
+    return redirect("producto_editar" if es_admin else "tecnico_producto_editar", pk=producto.pk)

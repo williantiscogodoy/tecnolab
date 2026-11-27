@@ -39,6 +39,7 @@ urlpatterns = [
     path("reposicion/<int:pk>/item/<int:item_id>/quitar/", reposicion.reposicion_item_quitar, name="reposicion_item_quitar"),
     path("reposicion/<int:pk>/cancelar/", reposicion.reposicion_cancelar, name="reposicion_cancelar"),
     path("reposicion/<int:pk>/recibir/", reposicion.reposicion_recibir, name="reposicion_recibir"),
+    path("productos/<int:pk>/actualizar-fecha/", tecnico.producto_actualizar_fecha, name="producto_actualizar_fecha"),
     path("tecnico/producto/nuevo/", tecnico.tecnico_producto_crear, name="tecnico_producto_crear"),
     path("tecnico/producto/<int:pk>/editar/", tecnico.tecnico_producto_editar, name="tecnico_producto_editar"),
     path("tecnico/producto/<int:pk>/compatibles/buscar/", tecnico.tecnico_compat_buscar, name="tecnico_compat_buscar"),

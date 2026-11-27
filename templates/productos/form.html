@@ -42,6 +42,7 @@
   .margin .pos { color: var(--ok); }
   .margin .neg { color: var(--danger); }
 
+  .fecha-precio { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.7rem; }
   .note { display: flex; gap: 0.6rem; align-items: flex-start; font-size: 0.83rem; color: var(--muted); line-height: 1.45; }
   .note .ico { width: 17px; height: 17px; margin-top: 1px; color: var(--primary); }
 
@@ -102,6 +103,12 @@
             {% include "productos/_campo.html" with field=form.precio_venta prefix="Bs" %}
           </div>
           <div class="margin" id="margen" aria-live="polite"><span>Ganancia por unidad</span><strong id="margenValor">—</strong></div>
+          {% endif %}
+          {% if producto %}
+          <div class="fecha-precio">
+            <p class="note"><svg class="ico"><use href="#i-info"/></svg><span>Precio actualizado el <strong>{{ producto.precio_venta_actualizado|date:"d/m/Y"|default:"— (sin registro)" }}</strong></span></p>
+            <button class="btn keep-label" type="submit" form="form-fecha"><svg class="ico"><use href="#i-check"/></svg><span>Actualizar solo fecha</span></button>
+          </div>
           {% endif %}
         </div>
       </section>
@@ -171,6 +178,10 @@
     </div>
   </div>
 </form>
+{% if producto %}
+{# Formulario aparte (no se puede anidar dentro del de arriba); el botón de Precios lo envía con form="form-fecha" #}
+<form id="form-fecha" method="post" action="{% url 'producto_actualizar_fecha' producto.pk %}">{% csrf_token %}</form>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -315,4 +326,21 @@
     });
   })();
 </script>
+{% if producto %}
+<script>
+  // "Actualizar solo fecha": pide confirmación; avisa si hay cambios sin guardar, porque se perderían
+  (function () {
+    var enviar = document.getElementById('form-fecha');
+    if (!enviar) return;
+    var principal = document.querySelector('form[enctype="multipart/form-data"]'), sucio = false;
+    principal.addEventListener('input', function () { sucio = true; });
+    principal.addEventListener('change', function () { sucio = true; });
+    enviar.addEventListener('submit', function (e) {
+      var msg = 'La fecha del precio será actualizada sin cambiar el precio.';
+      if (sucio) msg += '\n\nLos cambios que no hayas guardado en este formulario se perderán.';
+      if (!window.confirm(msg)) e.preventDefault();
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}
